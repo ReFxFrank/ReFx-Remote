@@ -43,6 +43,45 @@ Event names to the FE stay as briefed (`console:{id}`, `stats:{id}`, `status:{id
 
 `refx_` keys authenticate REST (via `X-Api-Key`) but the console gateway only verifies access JWTs — an API-key desktop app would have no live console, which is the feature the app lives or dies on (brief §7). Keys remain interesting for a future headless "tray-only monitor mode."
 
+## D-004 (2026-07-13): Phase 3 console client — hand-roll over rustls tokio-tungstenite
+
+**Spike result (evidence-based).** Before committing, I connected `rust_socketio`
+0.6 to the real `https://api.refx.gg/ws/console` with the test account's access
+JWT (example `ws_spike.rs`, since removed). Observed, verbatim:
+
+```
+1. login OK, got access token (268 chars)
+2. connecting to https://api.refx.gg/ws/console …
+   [   0ms] socket OPEN                       # Engine.IO v4 handshake OK; JWT
+                                              #   in CONNECT auth payload accepted
+   [  22ms] event `error` -> {"message":"forbidden"}   # subscribe to a bogus
+                                              #   server id → routed error
+```
+
+This confirms the whole handshake contract end-to-end: default engine path
+`/socket.io`, namespace `/ws/console`, auth via the CONNECT `{token}` payload,
+and bidirectional named-event routing — all exactly as docs/recon predicted.
+
+**Decision: hand-roll a minimal Socket.IO/Engine.IO-v4 client** over the
+existing `tokio-tungstenite` (rustls), NOT adopt `rust_socketio`. Reasons:
+
+1. **TLS stack.** `rust_socketio` 0.6 hardwires `native-tls` (no rustls
+   feature) and pulls a second `reqwest` (0.12) — both violate the brief's
+   rustls-only / no-native-tls rule and bloat the build.
+2. **Control over reconnect/refresh.** Phase 3 needs bespoke behavior the
+   library fights: refresh the JWT and re-`auth` on the *same* socket without
+   tearing down; single-flight token refresh shared with the REST layer;
+   `conn:{id}` status events; a per-server ring buffer. Owning the loop is
+   simpler than bending an opinionated client.
+3. **The protocol is small and now proven.** Frames are just `40{auth}` /
+   `42["event",arg]` / `41` over one WS; the spike showed the exact server
+   behavior to test against.
+
+The `Origin` header is a non-issue (gateway CORS reflects any origin — D-001).
+Client lives in `src-tauri/src/console/`. **Still blocked on a live server**
+for the acceptance criteria (output ≤1s, survives token refresh, reconnect on
+wake) — see todo-frank #3.
+
 ## D-003 (2026-07-13): Phase 2 polling cadence — stay inside 120 req/min/IP
 
 The panel throttles 120 requests/60s per IP; live stats have no WS feed yet
