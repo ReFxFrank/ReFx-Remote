@@ -7,6 +7,9 @@
 //! emitted events. The surface is enumerated in `docs/ipc-contract.md`.
 
 mod commands;
+pub mod logging;
+pub mod state;
+pub mod vault;
 
 pub mod console;
 pub mod panel;
@@ -26,9 +29,22 @@ pub fn run() {
                 let _ = win.set_focus();
             }
         }))
-        .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![commands::app_info])
+        .setup(|app| {
+            let log_dir = app.path().app_log_dir()?;
+            if let Err(e) = logging::init(&log_dir) {
+                eprintln!("logging init failed: {e}");
+            }
+            app.manage(state::AppState::new()?);
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::app_info,
+            commands::auth_status,
+            commands::auth_login,
+            commands::auth_mfa_verify,
+            commands::auth_logout,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

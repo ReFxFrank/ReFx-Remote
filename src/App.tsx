@@ -1,25 +1,22 @@
-import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
-
-type AppInfo = { name: string; version: string };
+import { useEffect } from "react";
+import { useAuth } from "./store/auth";
+import SignIn from "./screens/SignIn";
+import Home from "./screens/Home";
 
 export default function App() {
-  const [info, setInfo] = useState<AppInfo | null>(null);
+  const { status, init } = useAuth();
 
   useEffect(() => {
-    invoke<AppInfo>("app_info")
-      .then(setInfo)
-      .catch(() => setInfo(null));
-  }, []);
+    void init();
+  }, [init]);
 
-  return (
-    <main className="flex h-screen flex-col items-center justify-center gap-2 bg-zinc-950 text-zinc-100">
-      <h1 className="text-2xl font-semibold tracking-tight">
-        {info?.name ?? "ReFx Desktop"}
-      </h1>
-      <p className="text-sm text-zinc-400">
-        {info ? `v${info.version} — Phase 0 scaffold` : "connecting to core…"}
-      </p>
-    </main>
-  );
+  if (status === "loading") {
+    return (
+      <main className="flex h-screen items-center justify-center bg-zinc-950">
+        <p className="text-sm text-zinc-500">Starting…</p>
+      </main>
+    );
+  }
+  if (status === "signedIn") return <Home />;
+  return <SignIn />;
 }
