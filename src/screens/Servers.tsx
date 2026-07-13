@@ -4,7 +4,7 @@ import { useAuth } from "../store/auth";
 import type { ServerSummary } from "../lib/ipc";
 import { fromMb, stateDot, stateLabel } from "../lib/format";
 import ServerDetailPanel from "../components/ServerDetailPanel";
-import { LogoMark, LogoWordmark } from "../components/Logo";
+import { LogoWordmark } from "../components/Logo";
 
 export default function Servers() {
   const {
@@ -48,9 +48,8 @@ export default function Servers() {
     <div className="relative flex h-screen flex-col">
       <header className="refx-beam sticky top-0 z-40 flex items-center justify-between border-b border-white/[0.06] bg-[rgba(7,11,18,0.72)] px-6 py-3 backdrop-blur-xl">
         <div className="flex items-center gap-2.5">
-          <LogoMark size={26} />
-          <LogoWordmark height={16} className="opacity-90" />
-          <span className="ml-1 text-sm font-medium text-muted-foreground">Desktop</span>
+          <LogoWordmark height={18} />
+          <span className="text-sm font-medium text-muted-foreground">Desktop</span>
         </div>
         <div className="flex items-center gap-4 text-sm">
           {conn !== "ok" && (

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useAuth } from "../store/auth";
-import { LogoMark } from "../components/Logo";
+import { LogoWordmark } from "../components/Logo";
 
 export default function SignIn() {
   const { status, login, verifyMfa, backToSignIn, busy, error, mfaMethods } = useAuth();
@@ -36,8 +36,8 @@ export default function SignIn() {
         className="refx-panel refx-beam refx-enter w-full max-w-sm overflow-hidden p-8"
       >
         <div className="flex items-center gap-2.5">
-          <LogoMark size={30} />
-          <span className="text-lg font-semibold tracking-tight">ReFx Desktop</span>
+          <LogoWordmark height={26} />
+          <span className="text-lg font-semibold tracking-tight text-muted-foreground">Desktop</span>
         </div>
         <p className="mt-2 text-sm text-muted-foreground">
           {mfa
