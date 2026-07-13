@@ -43,7 +43,29 @@ Event names to the FE stay as briefed (`console:{id}`, `stats:{id}`, `status:{id
 
 `refx_` keys authenticate REST (via `X-Api-Key`) but the console gateway only verifies access JWTs — an API-key desktop app would have no live console, which is the feature the app lives or dies on (brief §7). Keys remain interesting for a future headless "tray-only monitor mode."
 
+## D-005 (2026-07-13): Detail-panel stat tiles stay on REST, not the WS stats frame
+
+The brief (§6) says "when a websocket is open for a server, stop polling
+`/resources`; the WS stats stream supersedes it." On **this** backend the WS
+`stats` frame is strictly *poorer* than REST `GET /servers/:id/stats`: it
+carries `{cpuPct, memUsedMb, diskUsedMb, netRx/TxBytes, state}` but **not**
+`memTotalMb`, `players`, or `uptimeMs` (verified in recon + the live console
+check). The guardrail's real intent is rate-limit avoidance, and a single
+selected server's 5 s REST poll is ~12 req/min — negligible against the 120
+budget. So the stat tiles keep polling REST (rich data, live-verified) while
+the console session's `stats:{id}` events remain available but unused by the
+tiles. Net: better UX, guardrail intent satisfied. The console session still
+receives `stats`/`power` so a future compact pop-out stat line can use them.
+
 ## D-004 (2026-07-13): Phase 3 console client — hand-roll over rustls tokio-tungstenite
+
+**Live-verified 2026-07-13** against the real "ttt" Minecraft server: the
+hand-rolled client connected in 189 ms, and after a `start` the full Paper
+boot log streamed line-by-line in real time (JVM start → plugin init → world
+gen → spawn prep) alongside `stats` frames (mem 0→1049 MB) and a
+`STATUS→STARTING` event. 60 console lines + 5 stats frames in 20 s. The
+handshake/codec/ring-buffer all work end-to-end.
+
 
 **Spike result (evidence-based).** Before committing, I connected `rust_socketio`
 0.6 to the real `https://api.refx.gg/ws/console` with the test account's access

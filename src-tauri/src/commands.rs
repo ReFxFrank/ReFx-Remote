@@ -6,6 +6,7 @@
 use serde::Serialize;
 use tauri::State;
 
+use crate::console::{ConsoleLine, ConsoleManager};
 use crate::panel::auth::LoginOutcome;
 use crate::panel::error::IpcError;
 use crate::panel::models::{PageMeta, Profile};
@@ -158,6 +159,37 @@ pub async fn server_power(
         mfa_methods: None,
     })?;
     servers::power(&state.auth, &server_id, signal)
+        .await
+        .map_err(Into::into)
+}
+
+/// Open (or reuse) the live console for a server. Returns buffered
+/// scrollback; new lines then arrive on `console:{server_id}`. The FE should
+/// subscribe to the events *before* calling this to avoid a gap.
+#[tauri::command]
+pub fn console_open(
+    console: State<'_, ConsoleManager>,
+    server_id: String,
+) -> Vec<ConsoleLine> {
+    console.open(&server_id)
+}
+
+#[tauri::command]
+pub fn console_close(console: State<'_, ConsoleManager>, server_id: String) {
+    console.close(&server_id);
+}
+
+#[tauri::command]
+pub async fn console_command(
+    state: State<'_, AppState>,
+    server_id: String,
+    command: String,
+) -> Result<(), IpcError> {
+    let cmd = command.trim();
+    if cmd.is_empty() {
+        return Ok(());
+    }
+    servers::send_command(&state.auth, &server_id, cmd)
         .await
         .map_err(Into::into)
 }

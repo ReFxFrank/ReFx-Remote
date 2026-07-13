@@ -118,7 +118,7 @@ export default function Servers() {
           </div>
         </section>
 
-        <section className="min-h-0 flex-1 overflow-y-auto">
+        <section className="min-h-0 flex-1 overflow-hidden">
           {selected ? (
             <ServerDetailPanel server={selected} />
           ) : (

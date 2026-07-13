@@ -3,6 +3,7 @@ import type { PowerSignal, ServerSummary } from "../lib/ipc";
 import { useServers } from "../store/servers";
 import { bytesRate, fromMb, pct, stateDot, stateLabel, uptime } from "../lib/format";
 import PowerControls from "./PowerControls";
+import Console from "./Console";
 
 export default function ServerDetailPanel({ server }: { server: ServerSummary }) {
   const {
@@ -19,12 +20,16 @@ export default function ServerDetailPanel({ server }: { server: ServerSummary })
 
   // Gate power controls on the caller's effective permissions once the
   // detail has loaded; undefined while loading (assume allowed).
-  const canPower =
-    selectedDetail && selectedDetail.id === server.id
-      ? selectedDetail.viewerPermissions.some(
-          (p) => p === "control.power" || p === "control.*" || p === "*",
-        )
-      : undefined;
+  const detailReady = selectedDetail && selectedDetail.id === server.id;
+  const hasPerm = (...keys: string[]) =>
+    !!detailReady &&
+    selectedDetail!.viewerPermissions.some((p) => keys.includes(p) || p === "*");
+  const canPower = detailReady
+    ? hasPerm("control.power", "control.*")
+    : undefined;
+  // Command input: gate on console.command; while the detail is still loading
+  // assume allowed (owner is the common case), with the 403 backstop.
+  const canCommand = detailReady ? hasPerm("console.command", "console.*") : true;
 
   const alloc = server.primaryAllocation;
   const address = alloc?.ip ? `${alloc.ip}:${alloc.port}` : null;
@@ -66,7 +71,7 @@ export default function ServerDetailPanel({ server }: { server: ServerSummary })
   const diskTotal = server.diskMb || 0;
 
   return (
-    <div className="p-6">
+    <div className="flex h-full flex-col p-6">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -140,9 +145,9 @@ export default function ServerDetailPanel({ server }: { server: ServerSummary })
 
       {statsError && <p className="mt-3 text-xs text-zinc-500">{statsError}</p>}
 
-      <p className="mt-8 text-sm text-zinc-600">
-        Live console, files, and backups arrive in the next phases.
-      </p>
+      <div className="mt-6 flex min-h-0 flex-1 flex-col">
+        <Console key={server.id} serverId={server.id} canCommand={canCommand} />
+      </div>
     </div>
   );
 }

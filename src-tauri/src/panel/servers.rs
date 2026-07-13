@@ -219,3 +219,26 @@ pub async fn power(
     }
     Ok(())
 }
+
+#[derive(Debug, Serialize)]
+struct CommandBody<'a> {
+    command: &'a str,
+}
+
+/// Send one console command via REST (`console.command` permission). We use
+/// REST rather than the WS `command` event because the gateway checks a
+/// non-grantable permission string there; REST returns an authoritative
+/// status and works for sub-users. 409 if the server isn't running.
+pub async fn send_command(auth: &AuthManager, id: &str, command: &str) -> Result<(), PanelError> {
+    let res: Accepted = auth
+        .authed_json(
+            Method::POST,
+            &format!("/servers/{id}/command"),
+            Some(&CommandBody { command }),
+        )
+        .await?;
+    if !res.accepted {
+        return Err(PanelError::Other("The panel didn't accept the command.".into()));
+    }
+    Ok(())
+}

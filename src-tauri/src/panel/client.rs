@@ -16,6 +16,8 @@ pub const DEFAULT_ORIGIN: &str = "https://api.refx.gg";
 #[derive(Clone)]
 pub struct PanelClient {
     http: Client,
+    /// e.g. `https://api.refx.gg` — no trailing slash.
+    origin: String,
     /// e.g. `https://api.refx.gg/api/v1` — no trailing slash.
     base: String,
 }
@@ -44,8 +46,14 @@ impl PanelClient {
             .build()?;
         Ok(Self {
             http,
+            origin: origin.to_string(),
             base: format!("{origin}/api/v1"),
         })
+    }
+
+    /// Panel origin (scheme+host), for building the console websocket URL.
+    pub fn origin(&self) -> &str {
+        &self.origin
     }
 
     pub fn from_env() -> Result<Self, PanelError> {

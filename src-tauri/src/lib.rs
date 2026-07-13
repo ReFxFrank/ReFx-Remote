@@ -35,7 +35,10 @@ pub fn run() {
             if let Err(e) = logging::init(&log_dir) {
                 eprintln!("logging init failed: {e}");
             }
-            app.manage(state::AppState::new()?);
+            let state = state::AppState::new()?;
+            let console = console::ConsoleManager::new(app.handle().clone(), state.auth.clone());
+            app.manage(console);
+            app.manage(state);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -48,6 +51,9 @@ pub fn run() {
             commands::server_get,
             commands::server_stats,
             commands::server_power,
+            commands::console_open,
+            commands::console_close,
+            commands::console_command,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

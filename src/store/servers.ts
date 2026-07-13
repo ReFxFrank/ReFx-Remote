@@ -61,6 +61,7 @@ type ServersStore = {
   select: (id: string | null) => Promise<void>;
   pollStats: () => Promise<void>;
   power: (id: string, signal: PowerSignal) => Promise<void>;
+  patchState: (id: string, state: ServerState) => void;
   clearActionError: () => void;
   startPolling: () => () => void;
 };
@@ -220,6 +221,16 @@ export const useServers = create<ServersStore>((set, get) => ({
       if (handleAuthDeath(e)) return;
       set({ actionError: errorMessage(e) });
     }
+  },
+
+  // Apply a realtime power/state change from the console WS `status` event so
+  // the badge and power gating update sub-second, ahead of the next list poll.
+  // Also clears any optimistic pending for this server once its state moves.
+  patchState: (id, state) => {
+    const servers = get().servers.map((s) => (s.id === id ? { ...s, state } : s));
+    const pending = { ...get().pending };
+    if (pending[id] && pending[id].stateAtSend !== state) delete pending[id];
+    set({ servers, pending });
   },
 
   clearActionError: () => set({ actionError: null }),

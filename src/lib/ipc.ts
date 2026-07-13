@@ -73,6 +73,11 @@ export type ServerListResult = { servers: ServerSummary[]; meta?: PageMeta };
 
 export type PowerSignal = "start" | "stop" | "restart" | "kill";
 
+export type ConsoleLine = { line: string; stream: string; at: number };
+export type ConnState = "connecting" | "live" | "retrying" | "failed" | "closed";
+export type ConnEvent = { state: ConnState; detail?: string; attempt?: number };
+export type StatusEvent = { state: ServerState };
+
 export const ipc = {
   appInfo: () => invoke<AppInfo>("app_info"),
   authStatus: () => invoke<AuthStatus>("auth_status"),
@@ -86,6 +91,10 @@ export const ipc = {
   serverStats: (serverId: string) => invoke<LiveStats>("server_stats", { serverId }),
   serverPower: (serverId: string, signal: PowerSignal) =>
     invoke<void>("server_power", { serverId, signal }),
+  consoleOpen: (serverId: string) => invoke<ConsoleLine[]>("console_open", { serverId }),
+  consoleClose: (serverId: string) => invoke<void>("console_close", { serverId }),
+  consoleCommand: (serverId: string, command: string) =>
+    invoke<void>("console_command", { serverId, command }),
 };
 
 export function isIpcError(e: unknown): e is IpcError {

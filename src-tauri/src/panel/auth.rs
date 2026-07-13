@@ -205,6 +205,26 @@ impl AuthManager {
         self.tokens.read().await.is_some()
     }
 
+    /// Current access token for opening a console websocket. Errors if
+    /// signed out.
+    pub async fn access_token(&self) -> Result<String, PanelError> {
+        self.current_access().await
+    }
+
+    /// Force one rotation, e.g. when a websocket handshake was rejected with
+    /// `unauthorized` and we want a fresh token before reconnecting. Returns
+    /// the new access token. Single-flight via the same gate as 401 refresh.
+    pub async fn refresh_access_token(&self) -> Result<String, PanelError> {
+        let current = self.current_access().await?;
+        self.refresh_after_401(&current).await?;
+        self.current_access().await
+    }
+
+    /// The panel origin (scheme+host) for building the websocket URL.
+    pub fn origin(&self) -> &str {
+        self.client.origin()
+    }
+
     /// Authenticated GET/POST/… with refresh-once-retry on 401.
     pub async fn authed_json<T, B>(
         &self,
