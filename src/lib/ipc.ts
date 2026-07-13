@@ -82,6 +82,21 @@ export type FileEntry = {
   modified?: string | null;
 };
 
+export type BackupState = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "FAILED" | "UNKNOWN";
+export type Backup = {
+  id: string;
+  name?: string | null;
+  state: BackupState;
+  storage?: string | null;
+  progressPct?: number | null;
+  sizeBytes?: number | null;
+  checksum?: string | null;
+  isLocked: boolean;
+  error?: string | null;
+  completedAt?: string | null;
+  createdAt?: string | null;
+};
+
 export type ConsoleLine = { line: string; stream: string; at: number };
 export type ConnState = "connecting" | "live" | "retrying" | "failed" | "closed";
 export type ConnEvent = { state: ConnState; detail?: string; attempt?: number };
@@ -124,6 +139,17 @@ export const ipc = {
     invoke<string | null>("files_download", { serverId, path, suggestedName }),
   filesUpload: (serverId: string, destDir: string) =>
     invoke<number | null>("files_upload", { serverId, destDir }),
+  backupsList: (serverId: string) => invoke<Backup[]>("backups_list", { serverId }),
+  backupCreate: (serverId: string, name: string, mode?: string) =>
+    invoke<Backup>("backup_create", { serverId, name, mode }),
+  backupSetLocked: (serverId: string, backupId: string, locked: boolean) =>
+    invoke<Backup>("backup_set_locked", { serverId, backupId, locked }),
+  backupDelete: (serverId: string, backupId: string) =>
+    invoke<void>("backup_delete", { serverId, backupId }),
+  backupRestore: (serverId: string, backupId: string) =>
+    invoke<void>("backup_restore", { serverId, backupId }),
+  backupDownload: (serverId: string, backupId: string, suggestedName: string) =>
+    invoke<string | null>("backup_download", { serverId, backupId, suggestedName }),
 };
 
 export function isIpcError(e: unknown): e is IpcError {

@@ -5,8 +5,9 @@ import { bytesRate, fromMb, pct, stateDot, stateLabel, uptime } from "../lib/for
 import PowerControls from "./PowerControls";
 import Console from "./Console";
 import Files from "./Files";
+import Backups from "./Backups";
 
-type Tab = "console" | "files";
+type Tab = "console" | "files" | "backups";
 
 export default function ServerDetailPanel({ server }: { server: ServerSummary }) {
   const {
@@ -34,6 +35,9 @@ export default function ServerDetailPanel({ server }: { server: ServerSummary })
   // assume allowed (owner is the common case), with the 403 backstop.
   const canCommand = detailReady ? hasPerm("console.command", "console.*") : true;
   const canFileWrite = detailReady ? hasPerm("files.write", "files.*") : true;
+  const canBackupCreate = detailReady ? hasPerm("backup.create", "backup.*") : true;
+  const canBackupRestore = detailReady ? hasPerm("backup.restore", "backup.*") : true;
+  const canBackupDelete = detailReady ? hasPerm("backup.delete", "backup.*") : true;
   const [tab, setTab] = useState<Tab>("console");
 
   const alloc = server.primaryAllocation;
@@ -151,7 +155,7 @@ export default function ServerDetailPanel({ server }: { server: ServerSummary })
       {statsError && <p className="mt-3 text-xs text-zinc-500">{statsError}</p>}
 
       <div className="mt-6 flex items-center gap-1 border-b border-zinc-800">
-        {(["console", "files"] as Tab[]).map((t) => (
+        {(["console", "files", "backups"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -176,6 +180,20 @@ export default function ServerDetailPanel({ server }: { server: ServerSummary })
         <div className={`flex min-h-0 flex-1 flex-col ${tab === "files" ? "" : "hidden"}`}>
           <Files key={server.id} serverId={server.id} canWrite={canFileWrite} />
         </div>
+        {/* Backups mounts lazily on first open — avoids a list fetch for every
+            selected server before the user asks for it. */}
+        {tab === "backups" && (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <Backups
+              key={server.id}
+              serverId={server.id}
+              serverName={server.name}
+              canCreate={canBackupCreate}
+              canRestore={canBackupRestore}
+              canDelete={canBackupDelete}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -559,6 +559,56 @@ async fn oversized_upload_is_rejected_before_the_wire() {
 }
 
 #[tokio::test]
+async fn backups_list_decodes_the_real_row_shape() {
+    let server = MockServer::start().await;
+    // Verbatim shape from a live create (2026-07-13).
+    Mock::given(method("GET"))
+        .and(path("/api/v1/servers/srv_1/backups"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "success": true,
+            "data": [{
+                "id": "b1", "serverId": "srv_1", "name": "nightly", "state": "COMPLETED",
+                "storage": "LOCAL", "progressPct": 100, "location": null,
+                "sizeBytes": 62214936, "checksum": "abc", "isLocked": false,
+                "ignoredFiles": ["logs"], "error": null,
+                "completedAt": "2026-07-13T22:03:00Z", "createdAt": "2026-07-13T22:02:49Z"
+            }],
+            "meta": {"page": 1, "pageSize": 100, "total": 1, "totalPages": 1}
+        })))
+        .mount(&server)
+        .await;
+
+    let auth = signed_in(&server).await;
+    let list = refx_desktop_lib::panel::backups::list(&auth, "srv_1").await.unwrap();
+    assert_eq!(list.len(), 1);
+    assert_eq!(list[0].state, refx_desktop_lib::panel::backups::BackupState::Completed);
+    assert_eq!(list[0].size_bytes, Some(62214936));
+    assert!(!list[0].is_locked);
+}
+
+#[tokio::test]
+async fn backup_create_pending_and_cap_conflict() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/servers/srv_1/backups"))
+        .and(body_partial_json(json!({"name": "b"})))
+        .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+            "success": true, "data": {
+                "id": "b2", "serverId": "srv_1", "name": "b", "state": "PENDING",
+                "storage": "LOCAL", "progressPct": 0, "isLocked": false
+            }
+        })))
+        .mount(&server)
+        .await;
+
+    let auth = signed_in(&server).await;
+    let b = refx_desktop_lib::panel::backups::create(&auth, "srv_1", "b", None)
+        .await
+        .unwrap();
+    assert_eq!(b.state, refx_desktop_lib::panel::backups::BackupState::Pending);
+}
+
+#[tokio::test]
 async fn rate_limit_maps_with_retry_after() {
     let server = MockServer::start().await;
     Mock::given(method("GET"))

@@ -9,6 +9,7 @@ use tauri_plugin_dialog::DialogExt;
 
 use crate::console::{ConsoleLine, ConsoleManager};
 use crate::panel::auth::LoginOutcome;
+use crate::panel::backups::{self, Backup};
 use crate::panel::error::IpcError;
 use crate::panel::files::{self, FileEntry};
 use crate::panel::models::{PageMeta, Profile};
@@ -329,4 +330,76 @@ pub async fn files_upload(
     })?;
     let result = files::upload(&state.auth, &server_id, &dest_dir, &bytes).await?;
     Ok(Some(result.bytes))
+}
+
+// ── Backups ────────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn backups_list(
+    state: State<'_, AppState>,
+    server_id: String,
+) -> Result<Vec<Backup>, IpcError> {
+    backups::list(&state.auth, &server_id).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn backup_create(
+    state: State<'_, AppState>,
+    server_id: String,
+    name: String,
+    mode: Option<String>,
+) -> Result<Backup, IpcError> {
+    backups::create(&state.auth, &server_id, name.trim(), mode.as_deref())
+        .await
+        .map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn backup_set_locked(
+    state: State<'_, AppState>,
+    server_id: String,
+    backup_id: String,
+    locked: bool,
+) -> Result<Backup, IpcError> {
+    backups::set_locked(&state.auth, &server_id, &backup_id, locked)
+        .await
+        .map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn backup_delete(
+    state: State<'_, AppState>,
+    server_id: String,
+    backup_id: String,
+) -> Result<(), IpcError> {
+    backups::delete(&state.auth, &server_id, &backup_id).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn backup_restore(
+    state: State<'_, AppState>,
+    server_id: String,
+    backup_id: String,
+) -> Result<(), IpcError> {
+    backups::restore(&state.auth, &server_id, &backup_id).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn backup_download(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    server_id: String,
+    backup_id: String,
+    suggested_name: String,
+) -> Result<Option<String>, IpcError> {
+    let dest = app
+        .dialog()
+        .file()
+        .set_file_name(&suggested_name)
+        .blocking_save_file();
+    let Some(dest) = dest.and_then(|f| f.into_path().ok()) else {
+        return Ok(None);
+    };
+    backups::download(&state.auth, &server_id, &backup_id, &dest).await?;
+    Ok(Some(dest.to_string_lossy().to_string()))
 }

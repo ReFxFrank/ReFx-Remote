@@ -197,7 +197,7 @@ pub async fn upload(
 
 /// The download-url endpoint returns either an absolute URL (S3) or a
 /// panel-relative path WITHOUT the `/api/v1` prefix. Resolve accordingly.
-fn resolve_signed_url(origin: &str, url: &str) -> String {
+pub(crate) fn resolve_signed_url(origin: &str, url: &str) -> String {
     if url.starts_with("http://") || url.starts_with("https://") {
         url.to_string()
     } else {

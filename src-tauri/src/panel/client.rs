@@ -25,6 +25,47 @@ fn same_origin(url: &str, origin: &str) -> bool {
     }
 }
 
+/// SSRF guard for offsite downloads: block internal targets. The private-range
+/// tests apply ONLY to IP-literal hosts — a DNS name like
+/// `fdbackups.s3.amazonaws.com` is resolved publicly and must NOT be blocked
+/// just because it starts with "fd". IPv4-mapped IPv6 (`::ffff:127.0.0.1`) is
+/// canonicalised so it can't smuggle a loopback/RFC-1918 target past the check.
+fn looks_private(host: &str) -> bool {
+    use std::net::{IpAddr, Ipv4Addr};
+
+    let literal = host.trim_start_matches('[').trim_end_matches(']');
+    if literal.eq_ignore_ascii_case("localhost") {
+        return true;
+    }
+    let Ok(ip) = literal.parse::<IpAddr>() else {
+        return false; // DNS name — not an internal literal
+    };
+
+    fn v4_private(v4: Ipv4Addr) -> bool {
+        v4.is_loopback()
+            || v4.is_private()
+            || v4.is_link_local()
+            || v4.is_unspecified()
+            || v4.is_broadcast()
+            // 100.64.0.0/10 (carrier-grade NAT)
+            || (v4.octets()[0] == 100 && (64..=127).contains(&v4.octets()[1]))
+    }
+
+    match ip {
+        IpAddr::V4(v4) => v4_private(v4),
+        IpAddr::V6(v6) => {
+            if let Some(mapped) = v6.to_ipv4_mapped() {
+                return v4_private(mapped);
+            }
+            let seg0 = v6.segments()[0];
+            v6.is_loopback()
+                || v6.is_unspecified()
+                || (seg0 & 0xfe00) == 0xfc00 // fc00::/7 unique-local
+                || (seg0 & 0xffc0) == 0xfe80 // fe80::/10 link-local
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct PanelClient {
     http: Client,
@@ -182,6 +223,32 @@ impl PanelClient {
                 "Refusing to download from an unexpected host.".into(),
             ));
         }
+        self.save_streamed(url, dest).await
+    }
+
+    /// Download from our origin OR a public https host (e.g. an S3/R2
+    /// presigned backup URL minted by our authed API). Requires https and
+    /// rejects private/loopback hosts as a light SSRF guard.
+    pub async fn download_offsite(&self, url: &str, dest: &Path) -> Result<u64, PanelError> {
+        if same_origin(url, &self.origin) {
+            return self.save_streamed(url, dest).await;
+        }
+        let parsed = reqwest::Url::parse(url)
+            .map_err(|_| PanelError::Other("Bad download URL.".into()))?;
+        if parsed.scheme() != "https" {
+            return Err(PanelError::Other("Refusing an insecure download URL.".into()));
+        }
+        if parsed.host_str().is_some_and(looks_private) {
+            return Err(PanelError::Other(
+                "Refusing to download from a private host.".into(),
+            ));
+        }
+        self.save_streamed(url, dest).await
+    }
+
+    /// Stream to a temp sibling and atomic-rename on success (a mid-stream
+    /// failure never truncates/corrupts the user's chosen file).
+    async fn save_streamed(&self, url: &str, dest: &Path) -> Result<u64, PanelError> {
         let tmp = dest.with_extension("refx-part");
         match self.stream_to(url, &tmp).await {
             Ok(total) => {
@@ -300,9 +367,32 @@ impl PanelClient {
 
 #[cfg(test)]
 mod tests {
-    use super::same_origin;
+    use super::{looks_private, same_origin};
 
     const ORIGIN: &str = "https://api.refx.gg";
+
+    #[test]
+    fn looks_private_only_blocks_internal_ip_literals() {
+        // Public DNS names must pass — even ones starting with fc/fd.
+        assert!(!looks_private("fdbackups.s3.amazonaws.com"));
+        assert!(!looks_private("fc3a9d0.r2.cloudflarestorage.com"));
+        assert!(!looks_private("bucket.s3.amazonaws.com"));
+        // Internal IP literals are blocked.
+        assert!(looks_private("127.0.0.1"));
+        assert!(looks_private("10.0.0.5"));
+        assert!(looks_private("192.168.1.1"));
+        assert!(looks_private("169.254.169.254")); // cloud metadata
+        assert!(looks_private("172.16.0.1"));
+        assert!(looks_private("100.64.0.1")); // CGNAT
+        assert!(looks_private("localhost"));
+        assert!(looks_private("::1"));
+        // IPv4-mapped IPv6 must not smuggle a loopback/metadata target.
+        assert!(looks_private("::ffff:127.0.0.1"));
+        assert!(looks_private("::ffff:169.254.169.254"));
+        assert!(looks_private("fd00::1")); // ULA
+        // A public IP literal is fine.
+        assert!(!looks_private("1.1.1.1"));
+    }
 
     #[test]
     fn same_origin_accepts_our_host() {

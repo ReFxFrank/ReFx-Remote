@@ -251,6 +251,32 @@ impl AuthManager {
         }
     }
 
+    /// Authed request where success is a bodyless 2xx (e.g. DELETE) — do NOT
+    /// try to decode an envelope. Refresh-once-retry on 401.
+    pub async fn authed_no_content<B>(
+        &self,
+        method: Method,
+        path: &str,
+        body: Option<&B>,
+    ) -> Result<(), PanelError>
+    where
+        B: serde::Serialize + ?Sized,
+    {
+        let access = self.current_access().await?;
+        match self
+            .client
+            .no_content(method.clone(), path, Some(&access), body)
+            .await
+        {
+            Err(PanelError::Unauthorized { .. }) => {
+                self.refresh_after_401(&access).await?;
+                let access = self.current_access().await?;
+                self.client.no_content(method, path, Some(&access), body).await
+            }
+            other => other,
+        }
+    }
+
     /// Authed raw-body upload with refresh-once-retry.
     pub async fn upload_bytes<T>(&self, path: &str, bytes: &[u8]) -> Result<T, PanelError>
     where
@@ -268,9 +294,19 @@ impl AuthManager {
     }
 
     /// Stream a panel-origin signed URL to a local file (no auth — the URL
-    /// carries an HMAC). Exposed for file/backup downloads.
+    /// carries an HMAC). Exposed for file downloads.
     pub async fn download_to(&self, url: &str, dest: &std::path::Path) -> Result<u64, PanelError> {
         self.client.download(url, dest).await
+    }
+
+    /// Like [`Self::download_to`] but also accepts a public https host (S3/R2
+    /// presigned backup URLs).
+    pub async fn download_offsite_to(
+        &self,
+        url: &str,
+        dest: &std::path::Path,
+    ) -> Result<u64, PanelError> {
+        self.client.download_offsite(url, dest).await
     }
 
     /// Paginated variant of [`Self::authed_json`].

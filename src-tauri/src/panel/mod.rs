@@ -6,6 +6,7 @@
 //! user's sessions — see `auth.rs`).
 
 pub mod auth;
+pub mod backups;
 pub mod client;
 pub mod error;
 pub mod files;
