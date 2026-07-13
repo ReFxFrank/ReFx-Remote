@@ -1,13 +1,15 @@
 /** ReFx brand marks (from the official asset set). */
 
 export function LogoMark({ size = 28, className = "" }: { size?: number; className?: string }) {
+  // The transparent blue "R" mark — sits cleanly on the dark UI, no backdrop.
+  // Explicit inline size so Tailwind's preflight (`img { height: auto }`)
+  // can't collapse it.
   return (
     <img
-      src="/brand/refx-icon.png"
+      src="/brand/refx-r.png"
       alt="ReFx"
-      width={size}
-      height={size}
-      className={`rounded-md ${className}`}
+      style={{ width: size, height: size, objectFit: "contain" }}
+      className={className}
       draggable={false}
     />
   );
@@ -15,13 +17,11 @@ export function LogoMark({ size = 28, className = "" }: { size?: number; classNa
 
 export function LogoWordmark({ height = 22, className = "" }: { height?: number; className?: string }) {
   // Source banner is 4096×832 (~4.92:1).
-  const width = Math.round((height * 4096) / 832);
   return (
     <img
       src="/brand/refx-wordmark.png"
       alt="ReFx"
-      width={width}
-      height={height}
+      style={{ height, width: "auto", objectFit: "contain" }}
       className={className}
       draggable={false}
     />
