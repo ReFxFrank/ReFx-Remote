@@ -4,6 +4,9 @@ import { useServers } from "../store/servers";
 import { bytesRate, fromMb, pct, stateDot, stateLabel, uptime } from "../lib/format";
 import PowerControls from "./PowerControls";
 import Console from "./Console";
+import Files from "./Files";
+
+type Tab = "console" | "files";
 
 export default function ServerDetailPanel({ server }: { server: ServerSummary }) {
   const {
@@ -30,6 +33,8 @@ export default function ServerDetailPanel({ server }: { server: ServerSummary })
   // Command input: gate on console.command; while the detail is still loading
   // assume allowed (owner is the common case), with the 403 backstop.
   const canCommand = detailReady ? hasPerm("console.command", "console.*") : true;
+  const canFileWrite = detailReady ? hasPerm("files.write", "files.*") : true;
+  const [tab, setTab] = useState<Tab>("console");
 
   const alloc = server.primaryAllocation;
   const address = alloc?.ip ? `${alloc.ip}:${alloc.port}` : null;
@@ -145,8 +150,32 @@ export default function ServerDetailPanel({ server }: { server: ServerSummary })
 
       {statsError && <p className="mt-3 text-xs text-zinc-500">{statsError}</p>}
 
-      <div className="mt-6 flex min-h-0 flex-1 flex-col">
-        <Console key={server.id} serverId={server.id} canCommand={canCommand} />
+      <div className="mt-6 flex items-center gap-1 border-b border-zinc-800">
+        {(["console", "files"] as Tab[]).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`-mb-px border-b-2 px-3 py-1.5 text-sm capitalize transition ${
+              tab === t
+                ? "border-zinc-100 text-zinc-100"
+                : "border-transparent text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {/* Both stay mounted (toggled via `hidden`) so switching tabs doesn't
+          tear down an open file editor's unsaved work or churn the console
+          socket. */}
+      <div className="mt-3 flex min-h-0 flex-1 flex-col">
+        <div className={`flex min-h-0 flex-1 flex-col ${tab === "console" ? "" : "hidden"}`}>
+          <Console key={server.id} serverId={server.id} canCommand={canCommand} />
+        </div>
+        <div className={`flex min-h-0 flex-1 flex-col ${tab === "files" ? "" : "hidden"}`}>
+          <Files key={server.id} serverId={server.id} canWrite={canFileWrite} />
+        </div>
       </div>
     </div>
   );

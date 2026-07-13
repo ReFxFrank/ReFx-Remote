@@ -73,6 +73,15 @@ export type ServerListResult = { servers: ServerSummary[]; meta?: PageMeta };
 
 export type PowerSignal = "start" | "stop" | "restart" | "kill";
 
+export type FileEntry = {
+  name: string;
+  path: string;
+  isDir: boolean;
+  size: number;
+  mode?: string | null;
+  modified?: string | null;
+};
+
 export type ConsoleLine = { line: string; stream: string; at: number };
 export type ConnState = "connecting" | "live" | "retrying" | "failed" | "closed";
 export type ConnEvent = { state: ConnState; detail?: string; attempt?: number };
@@ -95,6 +104,26 @@ export const ipc = {
   consoleClose: (serverId: string) => invoke<void>("console_close", { serverId }),
   consoleCommand: (serverId: string, command: string) =>
     invoke<void>("console_command", { serverId, command }),
+  filesList: (serverId: string, path: string) =>
+    invoke<FileEntry[]>("files_list", { serverId, path }),
+  filesRead: (serverId: string, path: string) =>
+    invoke<string>("files_read", { serverId, path }),
+  filesWrite: (serverId: string, path: string, content: string) =>
+    invoke<void>("files_write", { serverId, path, content }),
+  filesDelete: (serverId: string, paths: string[]) =>
+    invoke<void>("files_delete", { serverId, paths }),
+  filesRename: (serverId: string, from: string, to: string) =>
+    invoke<void>("files_rename", { serverId, from, to }),
+  filesMkdir: (serverId: string, path: string) =>
+    invoke<void>("files_mkdir", { serverId, path }),
+  filesCompress: (serverId: string, paths: string[]) =>
+    invoke<void>("files_compress", { serverId, paths }),
+  filesDecompress: (serverId: string, path: string) =>
+    invoke<void>("files_decompress", { serverId, path }),
+  filesDownload: (serverId: string, path: string, suggestedName: string) =>
+    invoke<string | null>("files_download", { serverId, path, suggestedName }),
+  filesUpload: (serverId: string, destDir: string) =>
+    invoke<number | null>("files_upload", { serverId, destDir }),
 };
 
 export function isIpcError(e: unknown): e is IpcError {

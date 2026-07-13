@@ -2,6 +2,8 @@
 //! flat-error mapping, rate-limit awareness. Auth/token logic lives in
 //! `auth.rs` — this layer just takes an optional bearer per call.
 
+use std::io::Write;
+use std::path::Path;
 use std::time::Duration;
 
 use reqwest::{Client, Method, Response, StatusCode};
@@ -12,6 +14,16 @@ use super::error::PanelError;
 use super::models::{Envelope, ErrorBody, PageMeta};
 
 pub const DEFAULT_ORIGIN: &str = "https://api.refx.gg";
+
+/// True iff `url` has the exact same origin (scheme+host+port) as `origin`.
+/// Parsed comparison — a prefix test would accept `https://api.refx.gg@evil`
+/// (userinfo) or `https://api.refx.gg.evil` (sibling subdomain).
+fn same_origin(url: &str, origin: &str) -> bool {
+    match (reqwest::Url::parse(url), reqwest::Url::parse(origin)) {
+        (Ok(a), Ok(b)) => a.origin() == b.origin(),
+        _ => false,
+    }
+}
 
 #[derive(Clone)]
 pub struct PanelClient {
@@ -43,6 +55,10 @@ impl PanelClient {
             .connect_timeout(Duration::from_secs(10))
             .timeout(Duration::from_secs(30))
             .https_only(!is_local)
+            // The panel never 3xx-redirects; refuse to follow one so a
+            // redirect can't smuggle a download to another host past the
+            // origin check.
+            .redirect(reqwest::redirect::Policy::none())
             .build()?;
         Ok(Self {
             http,
@@ -117,6 +133,89 @@ impl PanelClient {
         self.send(method, path, bearer, body).await.map(|_| ())
     }
 
+    /// Authed POST of a raw binary body (file upload), envelope-unwrapped.
+    /// `path` includes any query string. Enforces the panel's 32 MiB cap
+    /// before hitting the wire so the user gets a clear message.
+    pub async fn post_bytes<T>(
+        &self,
+        path: &str,
+        bearer: &str,
+        bytes: &[u8],
+    ) -> Result<T, PanelError>
+    where
+        T: DeserializeOwned,
+    {
+        const MAX: usize = 32 * 1024 * 1024;
+        if bytes.len() > MAX {
+            return Err(PanelError::Validation {
+                messages: vec![
+                    "That file is larger than the 32 MB direct-upload limit. Use SFTP for bigger files.".into(),
+                ],
+            });
+        }
+        let res = self
+            .http
+            .post(format!("{}{}", self.base, path))
+            .bearer_auth(bearer)
+            .header("Content-Type", "application/octet-stream")
+            .body(bytes.to_vec())
+            .send()
+            .await?;
+        if !res.status().is_success() {
+            return Err(Self::map_error(res).await);
+        }
+        let text = res.text().await?;
+        let env: Envelope<T> = serde_json::from_str(&text)
+            .map_err(|e| PanelError::Decode(format!("{path}: {e}")))?;
+        env.data
+            .ok_or_else(|| PanelError::Decode(format!("{path}: envelope had no data")))
+    }
+
+    /// Stream a signed download URL to a local file. The URL's origin
+    /// (scheme+host+port) must match the panel exactly — a plain prefix check
+    /// is bypassable via userinfo (`api.refx.gg@evil`) or a sibling subdomain
+    /// (`api.refx.gg.evil`). Streams to a temp sibling and renames on success
+    /// so a mid-stream failure never truncates the user's chosen file.
+    pub async fn download(&self, url: &str, dest: &Path) -> Result<u64, PanelError> {
+        if !same_origin(url, &self.origin) {
+            return Err(PanelError::Other(
+                "Refusing to download from an unexpected host.".into(),
+            ));
+        }
+        let tmp = dest.with_extension("refx-part");
+        match self.stream_to(url, &tmp).await {
+            Ok(total) => {
+                std::fs::rename(&tmp, dest).map_err(|e| {
+                    let _ = std::fs::remove_file(&tmp);
+                    PanelError::Other(format!("Couldn't save the file: {e}"))
+                })?;
+                Ok(total)
+            }
+            Err(e) => {
+                let _ = std::fs::remove_file(&tmp); // never leave a partial
+                Err(e)
+            }
+        }
+    }
+
+        async fn stream_to(&self, url: &str, tmp: &Path) -> Result<u64, PanelError> {
+        let mut res = self.http.get(url).send().await?;
+        if !res.status().is_success() {
+            return Err(Self::map_error(res).await);
+        }
+        let mut file = std::fs::File::create(tmp)
+            .map_err(|e| PanelError::Other(format!("Couldn't create the file: {e}")))?;
+        let mut total: u64 = 0;
+        while let Some(chunk) = res.chunk().await? {
+            file.write_all(&chunk)
+                .map_err(|e| PanelError::Other(format!("Couldn't write the file: {e}")))?;
+            total += chunk.len() as u64;
+        }
+        file.flush()
+            .map_err(|e| PanelError::Other(format!("Couldn't finish the file: {e}")))?;
+        Ok(total)
+    }
+
     async fn send<B>(
         &self,
         method: Method,
@@ -176,6 +275,13 @@ impl PanelClient {
             StatusCode::BAD_REQUEST | StatusCode::UNPROCESSABLE_ENTITY => PanelError::Validation {
                 messages: body.message.list(),
             },
+            StatusCode::PAYLOAD_TOO_LARGE => PanelError::Validation {
+                messages: vec![if message.is_empty() {
+                    "That file is larger than the 32 MB direct-upload limit. Use SFTP for bigger files.".into()
+                } else {
+                    message
+                }],
+            },
             StatusCode::CONFLICT => PanelError::Conflict { message },
             StatusCode::TOO_MANY_REQUESTS => PanelError::RateLimited {
                 retry_after_secs: retry_after,
@@ -189,5 +295,29 @@ impl PanelClient {
                 message,
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::same_origin;
+
+    const ORIGIN: &str = "https://api.refx.gg";
+
+    #[test]
+    fn same_origin_accepts_our_host() {
+        assert!(same_origin(
+            "https://api.refx.gg/api/v1/servers/s/files/download?exp=1&sig=a",
+            ORIGIN
+        ));
+    }
+
+    #[test]
+    fn same_origin_rejects_userinfo_and_subdomain_tricks() {
+        assert!(!same_origin("https://api.refx.gg@evil.com/x", ORIGIN));
+        assert!(!same_origin("https://api.refx.gg.evil.com/x", ORIGIN));
+        assert!(!same_origin("http://api.refx.gg/x", ORIGIN)); // scheme differs
+        assert!(!same_origin("https://evil.com/x", ORIGIN));
+        assert!(!same_origin("not a url", ORIGIN));
     }
 }

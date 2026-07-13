@@ -251,6 +251,28 @@ impl AuthManager {
         }
     }
 
+    /// Authed raw-body upload with refresh-once-retry.
+    pub async fn upload_bytes<T>(&self, path: &str, bytes: &[u8]) -> Result<T, PanelError>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        let access = self.current_access().await?;
+        match self.client.post_bytes(path, &access, bytes).await {
+            Err(PanelError::Unauthorized { .. }) => {
+                self.refresh_after_401(&access).await?;
+                let access = self.current_access().await?;
+                self.client.post_bytes(path, &access, bytes).await
+            }
+            other => other,
+        }
+    }
+
+    /// Stream a panel-origin signed URL to a local file (no auth — the URL
+    /// carries an HMAC). Exposed for file/backup downloads.
+    pub async fn download_to(&self, url: &str, dest: &std::path::Path) -> Result<u64, PanelError> {
+        self.client.download(url, dest).await
+    }
+
     /// Paginated variant of [`Self::authed_json`].
     pub async fn authed_paged<T, B>(
         &self,

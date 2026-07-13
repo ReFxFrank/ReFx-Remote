@@ -12,8 +12,13 @@ use refx_desktop_lib::panel::auth::{AuthManager, LoginOutcome};
 use refx_desktop_lib::panel::client::PanelClient;
 use refx_desktop_lib::panel::error::PanelError;
 use refx_desktop_lib::panel::models::Profile;
+use refx_desktop_lib::panel::files::FileEntry;
 use refx_desktop_lib::panel::servers::{self, PowerSignal, ServerState};
 use refx_desktop_lib::vault::Vault;
+
+async fn servers_files_list(auth: &AuthManager, id: &str, path: &str) -> Vec<FileEntry> {
+    refx_desktop_lib::panel::files::list(auth, id, path).await.unwrap()
+}
 
 fn client(server: &MockServer) -> PanelClient {
     PanelClient::new(&server.uri()).expect("client")
@@ -496,6 +501,61 @@ async fn power_conflict_surfaces_the_server_message() {
     let err = servers::power(&auth, "srv_1", PowerSignal::Start).await.unwrap_err();
     assert_eq!(err.code(), "CONFLICT");
     assert!(err.user_message().contains("installing"), "{}", err.user_message());
+}
+
+#[tokio::test]
+async fn files_list_decodes_entries() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/servers/srv_1/files/list"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "success": true,
+            "data": [
+                {"name": "server.properties", "path": "/server.properties", "isDir": false, "size": 1400, "mode": "-rw-r--r--", "modified": "2026-07-13T00:00:00Z"},
+                {"name": "world", "path": "/world", "isDir": true, "size": 0}
+            ]
+        })))
+        .mount(&server)
+        .await;
+
+    let auth = signed_in(&server).await;
+    let entries = servers_files_list(&auth, "srv_1", "/").await;
+    assert_eq!(entries.len(), 2);
+    assert!(!entries[0].is_dir);
+    assert_eq!(entries[0].size, 1400);
+    assert!(entries[1].is_dir);
+}
+
+#[tokio::test]
+async fn file_read_unwraps_content_field() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/servers/srv_1/files/contents"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            // `data` is the raw file text, not a { content } object.
+            "success": true, "data": "level-name=world\n"
+        })))
+        .mount(&server)
+        .await;
+
+    let auth = signed_in(&server).await;
+    let content = refx_desktop_lib::panel::files::read(&auth, "srv_1", "/server.properties")
+        .await
+        .unwrap();
+    assert_eq!(content, "level-name=world\n");
+}
+
+#[tokio::test]
+async fn oversized_upload_is_rejected_before_the_wire() {
+    let server = MockServer::start().await;
+    // No mock mounted — a request would 404; the size guard must fire first.
+    let auth = signed_in(&server).await;
+    let big = vec![0u8; 33 * 1024 * 1024];
+    let err = refx_desktop_lib::panel::files::upload(&auth, "srv_1", "/", &big)
+        .await
+        .unwrap_err();
+    assert_eq!(err.code(), "VALIDATION");
+    assert!(err.user_message().contains("32 MB"), "{}", err.user_message());
 }
 
 #[tokio::test]

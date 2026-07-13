@@ -30,6 +30,7 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let log_dir = app.path().app_log_dir()?;
             if let Err(e) = logging::init(&log_dir) {
@@ -54,6 +55,16 @@ pub fn run() {
             commands::console_open,
             commands::console_close,
             commands::console_command,
+            commands::files_list,
+            commands::files_read,
+            commands::files_write,
+            commands::files_delete,
+            commands::files_rename,
+            commands::files_mkdir,
+            commands::files_compress,
+            commands::files_decompress,
+            commands::files_download,
+            commands::files_upload,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

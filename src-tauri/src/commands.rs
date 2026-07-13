@@ -4,11 +4,13 @@
 //! Nothing returned here ever contains a token, password, or API key.
 
 use serde::Serialize;
-use tauri::State;
+use tauri::{AppHandle, State};
+use tauri_plugin_dialog::DialogExt;
 
 use crate::console::{ConsoleLine, ConsoleManager};
 use crate::panel::auth::LoginOutcome;
 use crate::panel::error::IpcError;
+use crate::panel::files::{self, FileEntry};
 use crate::panel::models::{PageMeta, Profile};
 use crate::panel::servers::{self, LiveStats, PowerSignal, ServerDetail, ServerSummary};
 use crate::state::AppState;
@@ -192,4 +194,139 @@ pub async fn console_command(
     servers::send_command(&state.auth, &server_id, cmd)
         .await
         .map_err(Into::into)
+}
+
+// ── Files ──────────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn files_list(
+    state: State<'_, AppState>,
+    server_id: String,
+    path: String,
+) -> Result<Vec<FileEntry>, IpcError> {
+    files::list(&state.auth, &server_id, &path).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn files_read(
+    state: State<'_, AppState>,
+    server_id: String,
+    path: String,
+) -> Result<String, IpcError> {
+    files::read(&state.auth, &server_id, &path).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn files_write(
+    state: State<'_, AppState>,
+    server_id: String,
+    path: String,
+    content: String,
+) -> Result<(), IpcError> {
+    files::write(&state.auth, &server_id, &path, &content).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn files_delete(
+    state: State<'_, AppState>,
+    server_id: String,
+    paths: Vec<String>,
+) -> Result<(), IpcError> {
+    files::delete(&state.auth, &server_id, &paths).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn files_rename(
+    state: State<'_, AppState>,
+    server_id: String,
+    from: String,
+    to: String,
+) -> Result<(), IpcError> {
+    files::rename(&state.auth, &server_id, &from, &to).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn files_mkdir(
+    state: State<'_, AppState>,
+    server_id: String,
+    path: String,
+) -> Result<(), IpcError> {
+    files::mkdir(&state.auth, &server_id, &path).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn files_compress(
+    state: State<'_, AppState>,
+    server_id: String,
+    paths: Vec<String>,
+) -> Result<(), IpcError> {
+    files::compress(&state.auth, &server_id, &paths, None).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn files_decompress(
+    state: State<'_, AppState>,
+    server_id: String,
+    path: String,
+) -> Result<(), IpcError> {
+    files::decompress(&state.auth, &server_id, &path).await.map_err(Into::into)
+}
+
+/// Download a file: prompt for a save location, stream it there. Returns the
+/// saved path, or `None` if the user cancelled the dialog.
+#[tauri::command]
+pub async fn files_download(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    server_id: String,
+    path: String,
+    suggested_name: String,
+) -> Result<Option<String>, IpcError> {
+    let dest = app
+        .dialog()
+        .file()
+        .set_file_name(&suggested_name)
+        .blocking_save_file();
+    let Some(dest) = dest.and_then(|f| f.into_path().ok()) else {
+        return Ok(None);
+    };
+    files::download(&state.auth, &server_id, &path, &dest).await?;
+    Ok(Some(dest.to_string_lossy().to_string()))
+}
+
+/// Upload: prompt for a local file, read it, POST to `dest_dir`. Returns the
+/// uploaded byte count, or `None` if the user cancelled.
+#[tauri::command]
+pub async fn files_upload(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    server_id: String,
+    dest_dir: String,
+) -> Result<Option<u64>, IpcError> {
+    let picked = app.dialog().file().blocking_pick_file();
+    let Some(local) = picked.and_then(|f| f.into_path().ok()) else {
+        return Ok(None);
+    };
+    // Check the size from metadata BEFORE reading — otherwise a mistakenly
+    // picked multi-GB file would be fully allocated in RAM before the cap.
+    const MAX: u64 = 32 * 1024 * 1024;
+    let meta = std::fs::metadata(&local).map_err(|e| IpcError {
+        code: "OTHER",
+        message: format!("Couldn't read that file: {e}"),
+        mfa_methods: None,
+    })?;
+    if meta.len() > MAX {
+        return Err(IpcError {
+            code: "VALIDATION",
+            message: "That file is larger than the 32 MB direct-upload limit. Use SFTP for bigger files.".into(),
+            mfa_methods: None,
+        });
+    }
+    let bytes = std::fs::read(&local).map_err(|e| IpcError {
+        code: "OTHER",
+        message: format!("Couldn't read that file: {e}"),
+        mfa_methods: None,
+    })?;
+    let result = files::upload(&state.auth, &server_id, &dest_dir, &bytes).await?;
+    Ok(Some(result.bytes))
 }
