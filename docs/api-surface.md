@@ -5,7 +5,7 @@
 
 Evidence tags used below:
 
-- **[LIVE]** — observed against production `https://api.refx.gg` on 2026-07-13 (unauthenticated probes only; no credentials were available).
+- **[LIVE]** — observed against production `https://api.refx.gg` on 2026-07-13. Initially unauthenticated probes; later the same day an authenticated pass ran with the test account (login → me → servers → notifications → sessions → refresh → error-shape → logout): every contract below marked [LIVE-AUTH] was confirmed verbatim. Prod `expiresIn` is **900 s** (15 min access TTL). Refresh rotation confirmed (new token differs each time). `GET /account/notifications` returns a plain `data: []` array with no `meta`. A custom User-Agent shows verbatim in `GET /account/sessions`. The flat error shape confirmed with a garbage token. The test account has **no server yet**, so console/WS and server-scoped endpoints remain source-verified only.
 - **[SOURCE]** — mined from `ReFxHosting` @ `ce9b32f` (local clone in sync with public `https://github.com/ReFxFrank/ReFxHosting` `origin/main`), including its e2e tests. Everything load-bearing was adversarially cross-checked; see [recon/parity-cross-check.md](recon/parity-cross-check.md).
 
 Full per-domain endpoint inventory with DTOs and permission strings: [recon/panel-api.md](recon/panel-api.md). Realtime protocol in full: [recon/realtime-protocol.md](recon/realtime-protocol.md). Gaps and risks: [recon/gaps-and-risks.md](recon/gaps-and-risks.md).
@@ -108,11 +108,19 @@ The Android app ships four real bugs against this backend; the iOS app is the cl
 4. **Signed URLs are relative** — resolve non-`https?://` URLs as `apiOrigin + "/api/v1" + url`; Android's https-only opener makes its file downloads always fail.
 5. **Error envelope** — parse the flat error shape (§2); Android's `{success:false,error:{…}}` parser never matches, so users only ever see generic fallback messages.
 
-## 8. Still needs live verification (requires credentials or the local compose stack)
+## 8. Still needs live verification
 
-- Exact 429 response headers from `@nestjs/throttler` v6 (do this against the local stack, not prod).
+Resolved 2026-07-13 with the test account [LIVE-AUTH]:
+
+- ~~Production `JWT_ACCESS_TTL`~~ → **900 s** (login and refresh both return `expiresIn: 900`).
+- ~~`GET /account/notifications` shape~~ → plain array, no `meta` block.
+- ~~Sessions wire shape / UA rendering~~ → `{ id, ip, userAgent, createdAt, expiresAt }`, custom UA rendered verbatim.
+- ~~Refresh rotation~~ → confirmed rotating; `POST /auth/logout` → 204.
+- Per-route throttle headers confirmed: login responds with `X-Ratelimit-Limit: 10 / Reset: 60` (route-level override of the global 120).
+
+Still open (needs a server attached to the test account, or the local compose stack):
+
+- WS `/ws/console` handshake + `subscribe`/`console`/`stats`/`power` events against a real running server (confirm stats field set; `players` absent today).
 - Which of the duplicate sub-user controllers wins at runtime.
-- WS `stats` frame against a real running server (confirm field set; `players` absent today).
-- Whether `GET /account/notifications` honors pagination params (controller accepts a DTO but returns a plain array).
+- Exact 429 response headers from `@nestjs/throttler` v6 (test against the local stack, not prod).
 - SFTP password scoping (per-server vs per-user) — rotating from desktop may break the user's saved FileZilla credentials; check before shipping a "rotate" button.
-- Production `JWT_ACCESS_TTL` (900 s vs 3600 s — either way the client must refresh on 401, so this is informational).

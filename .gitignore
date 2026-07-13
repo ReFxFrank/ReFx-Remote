@@ -1,4 +1,4 @@
-# Secrets — never commit
+# ── Secrets — never commit ────────────────────────────────────
 .env
 .env.*
 !.env.example
@@ -9,27 +9,36 @@
 *.mobileprovision
 *.keystore
 *.jks
-# Tauri updater signing material
+# Tauri updater signing material (minisign) — losing control of this
+# orphans every install; it lives in CI secrets + password manager only
 *.sig.key
 tauri-signing*
-# Real API keys / tokens (defense in depth — none should ever exist as files)
 *apikey*
 *api-key*.txt
 
-# Node
-node_modules/
-dist/
+# ── Logs ──────────────────────────────────────────────────────
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# Rust
-target/
+# ── Build output ──────────────────────────────────────────────
+node_modules
+dist
+dist-ssr
+*.local
 
-# OS / editor
+# ── Editor directories and files ──────────────────────────────
+.vscode/*
+!.vscode/extensions.json
+.idea
 .DS_Store
 Thumbs.db
-*.swp
-.vscode/
-.idea/
-
-# Logs
-*.log
-logs/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
