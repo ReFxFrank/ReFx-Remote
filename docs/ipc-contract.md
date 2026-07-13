@@ -13,8 +13,14 @@ Keep this file in lock-step with `src-tauri/src/commands.rs`.
 | `auth_login` | `{ email, password, remember?, totp? }` | `{ status: "ok" }` \| `{ status: "mfa", methods: string[] }` | Phase 1 |
 | `auth_mfa_verify` | `{ code, method? }` | `void` (then call `auth_status`) | Phase 1 |
 | `auth_logout` | — | `void` — best-effort server revocation, always clears the vault | Phase 1 |
+| `servers_list` | `{ q? }` | `{ servers: ServerSummary[], meta? }` — page 1, pageSize 100 | Phase 2 |
+| `server_get` | `{ serverId }` | `ServerDetail` (= `ServerSummary` + `viewerPermissions: string[]`) | Phase 2 |
+| `server_stats` | `{ serverId }` | `LiveStats` (503 from a down node → `SERVER_ERROR`) | Phase 2 |
+| `server_power` | `{ serverId, signal: "start"\|"stop"\|"restart"\|"kill" }` | `void` (rejects `CONFLICT` while installing/etc.) | Phase 2 |
 
 `Profile` = `{ id, email, firstName?, lastName?, globalRole?, mustChangePassword, totpEnabledAt?, permissions: string[] }`.
+`ServerSummary` = `{ id, shortId?, name, description?, state, serverType?, cpuCores?, memoryMb?, diskMb?, slots?, suspendedAt?, createdAt?, template?: {id?,name?,slug?}, node?: {name?,fqdn?}, primaryAllocation?: {ip?,port?,alias?} }`. `state` is one of the panel's `ServerState` values or `UNKNOWN` (forward-compatible).
+`LiveStats` = `{ state, cpuPct, memUsedMb, memTotalMb, diskUsedMb, netRxBytes, netTxBytes, players?, uptimeMs? }`.
 
 ## Errors
 

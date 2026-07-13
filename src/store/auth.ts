@@ -13,6 +13,7 @@ type AuthStore = {
   login: (email: string, password: string, remember: boolean) => Promise<void>;
   verifyMfa: (code: string, method?: "totp" | "recovery") => Promise<void>;
   backToSignIn: () => void;
+  sessionExpired: () => void;
   logout: () => Promise<void>;
   clearError: () => void;
 };
@@ -66,6 +67,17 @@ export const useAuth = create<AuthStore>((set, get) => ({
   },
 
   backToSignIn: () => set({ status: "signedOut", mfaMethods: [], error: null }),
+
+  // Called when any authed request discovers the session died server-side
+  // (revoked from another device, refresh-family revocation). Route back to
+  // sign-in instead of stranding the user on a stale, silently-failing screen.
+  sessionExpired: () =>
+    set({
+      status: "signedOut",
+      profile: null,
+      mfaMethods: [],
+      error: "You were signed out. Please sign in again.",
+    }),
 
   logout: async () => {
     set({ busy: true, error: null });

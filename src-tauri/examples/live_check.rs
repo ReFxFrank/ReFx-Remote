@@ -46,6 +46,20 @@ async fn main() {
     let p = auth.profile().await.expect("profile");
     println!("2. profile: {} ({})", p.email, p.global_role.as_deref().unwrap_or("?"));
 
+    // 1b. Servers list decodes against the real endpoint (test account may
+    //     legitimately have zero servers).
+    let page = refx_desktop_lib::panel::servers::list(&auth, None, 1, 100)
+        .await
+        .expect("servers list");
+    println!(
+        "2b. servers: {} row(s), meta.total={}",
+        page.data.len(),
+        page.meta.as_ref().map(|m| m.total).unwrap_or(0)
+    );
+    for s in &page.data {
+        println!("    - {} [{:?}] {}", s.name, s.state, s.id);
+    }
+
     // 2. Simulated app relaunch: a brand-new manager must resume purely
     //    from the vaulted refresh token (one rotation).
     drop(auth);

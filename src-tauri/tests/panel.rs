@@ -12,6 +12,7 @@ use refx_desktop_lib::panel::auth::{AuthManager, LoginOutcome};
 use refx_desktop_lib::panel::client::PanelClient;
 use refx_desktop_lib::panel::error::PanelError;
 use refx_desktop_lib::panel::models::Profile;
+use refx_desktop_lib::panel::servers::{self, PowerSignal, ServerState};
 use refx_desktop_lib::vault::Vault;
 
 fn client(server: &MockServer) -> PanelClient {
@@ -350,6 +351,151 @@ async fn broken_vault_does_not_strand_a_rotated_token() {
     assert!(auth.is_signed_in().await, "session must survive a vault failure");
     let profile = auth.profile().await.unwrap();
     assert_eq!(profile.email, "t@x.com");
+}
+
+/// Login mock + signed-in manager, for tests exercising authed endpoints.
+async fn signed_in(server: &MockServer) -> std::sync::Arc<AuthManager> {
+    Mock::given(method("POST"))
+        .and(path("/api/v1/auth/login"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(tokens_body("AT", "RT")))
+        .mount(server)
+        .await;
+    let auth = manager(server);
+    auth.login("t@x.com", "pw", None, true).await.unwrap();
+    auth
+}
+
+#[tokio::test]
+async fn servers_list_decodes_the_real_row_shape_with_meta() {
+    let server = MockServer::start().await;
+    // Row shape from the Android wire fixture (ServerDecodingTest.kt),
+    // which mirrors the panel's withPrimaryAllocation projection.
+    Mock::given(method("GET"))
+        .and(path("/api/v1/servers"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "success": true,
+            "data": [{
+                "id": "srv_1", "shortId": "abcd", "name": "My SMP", "state": "RUNNING",
+                "cpuCores": 2.0, "memoryMb": 4096, "diskMb": 20480,
+                "template": {"id": "t1", "name": "Minecraft", "slug": "minecraft-java", "supportsWorkshop": false},
+                "node": {"name": "node-1", "fqdn": "n1.refx.gg"},
+                "primaryAllocation": {"id": "a1", "ip": "1.2.3.4", "port": 25565, "alias": "play.example.com", "isPrimary": true}
+            }],
+            "meta": {"page": 1, "pageSize": 25, "total": 1, "totalPages": 1}
+        })))
+        .mount(&server)
+        .await;
+
+    let auth = signed_in(&server).await;
+    let page = servers::list(&auth, None, 1, 25).await.unwrap();
+    assert_eq!(page.data.len(), 1);
+    let s = &page.data[0];
+    assert_eq!(s.name, "My SMP");
+    assert_eq!(s.state, ServerState::Running);
+    assert_eq!(s.template.as_ref().unwrap().name.as_deref(), Some("Minecraft"));
+    assert_eq!(s.node.as_ref().unwrap().fqdn.as_deref(), Some("n1.refx.gg"));
+    let alloc = s.primary_allocation.as_ref().unwrap();
+    assert_eq!((alloc.ip.as_deref(), alloc.port), (Some("1.2.3.4"), Some(25565)));
+    assert_eq!(page.meta.unwrap().total, 1);
+}
+
+#[tokio::test]
+async fn unknown_server_state_falls_back_to_unknown() {
+    // The panel grows states faster than we ship — never fail decode on one.
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/servers"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "success": true,
+            "data": [{"id": "srv_2", "name": "x", "state": "SOME_FUTURE_STATE"}],
+            "meta": {"page": 1, "pageSize": 25, "total": 1, "totalPages": 1}
+        })))
+        .mount(&server)
+        .await;
+
+    let auth = signed_in(&server).await;
+    let page = servers::list(&auth, None, 1, 25).await.unwrap();
+    assert_eq!(page.data[0].state, ServerState::Unknown);
+}
+
+#[tokio::test]
+async fn server_detail_carries_viewer_permissions() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/servers/srv_1"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "success": true,
+            "data": {
+                "id": "srv_1", "name": "My SMP", "state": "OFFLINE",
+                "viewerPermissions": ["server.read", "control.power", "console.command"]
+            }
+        })))
+        .mount(&server)
+        .await;
+
+    let auth = signed_in(&server).await;
+    let d = servers::get(&auth, "srv_1").await.unwrap();
+    assert_eq!(d.summary.state, ServerState::Offline);
+    assert!(d.viewer_permissions.contains(&"control.power".to_string()));
+}
+
+#[tokio::test]
+async fn live_stats_decode_float_wire_shape() {
+    let server = MockServer::start().await;
+    // Verbatim Android LiveStats fixture.
+    Mock::given(method("GET"))
+        .and(path("/api/v1/servers/srv_1/stats"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "success": true,
+            "data": {"state": "RUNNING", "cpuPct": 42.5, "memUsedMb": 1024.0,
+                     "memTotalMb": 4096.0, "diskUsedMb": 5000.0, "netRxBytes": 10.0,
+                     "netTxBytes": 20.0, "players": 3, "uptimeMs": 1000.0}
+        })))
+        .mount(&server)
+        .await;
+
+    let auth = signed_in(&server).await;
+    let s = servers::stats(&auth, "srv_1").await.unwrap();
+    assert_eq!(s.state, ServerState::Running);
+    assert_eq!(s.cpu_pct, 42.5);
+    assert_eq!(s.players, Some(3.0));
+    assert_eq!(s.uptime_ms, Some(1000.0));
+}
+
+#[tokio::test]
+async fn power_posts_signal_and_accepts() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/servers/srv_1/power"))
+        .and(body_partial_json(json!({"signal": "restart"})))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "success": true, "data": {"accepted": true}
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let auth = signed_in(&server).await;
+    servers::power(&auth, "srv_1", PowerSignal::Restart).await.unwrap();
+}
+
+#[tokio::test]
+async fn power_conflict_surfaces_the_server_message() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/servers/srv_1/power"))
+        .respond_with(ResponseTemplate::new(409).set_body_json(json!({
+            "statusCode": 409, "error": "ConflictException",
+            "message": "Server is installing", "path": "/api/v1/servers/srv_1/power",
+            "timestamp": "2026-07-13T00:00:00.000Z"
+        })))
+        .mount(&server)
+        .await;
+
+    let auth = signed_in(&server).await;
+    let err = servers::power(&auth, "srv_1", PowerSignal::Start).await.unwrap_err();
+    assert_eq!(err.code(), "CONFLICT");
+    assert!(err.user_message().contains("installing"), "{}", err.user_message());
 }
 
 #[tokio::test]

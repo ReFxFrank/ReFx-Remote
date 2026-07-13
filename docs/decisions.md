@@ -43,6 +43,25 @@ Event names to the FE stay as briefed (`console:{id}`, `stats:{id}`, `status:{id
 
 `refx_` keys authenticate REST (via `X-Api-Key`) but the console gateway only verifies access JWTs — an API-key desktop app would have no live console, which is the feature the app lives or dies on (brief §7). Keys remain interesting for a future headless "tray-only monitor mode."
 
+## D-003 (2026-07-13): Phase 2 polling cadence — stay inside 120 req/min/IP
+
+The panel throttles 120 requests/60s per IP; live stats have no WS feed yet
+(that's Phase 3). To keep multi-server dashboards well under budget:
+
+- **One `GET /servers` call per cycle** refreshes the whole list (name, state,
+  IP, memory) — 10 s when focused, 30 s when blurred, paused when hidden to
+  tray. That's ≤6 req/min regardless of server count.
+- **`GET /servers/:id/stats` polls only the selected server** at 5 s (≤12
+  req/min). Unselected rows show state from the list refresh, not per-row
+  stats — so 100 servers cost the same as 1.
+- Worst case (focused, one server selected) ≈ 18 req/min — 15% of budget,
+  leaving headroom for auth refresh and user actions.
+- Power actions use `POST /power` (authoritative `{accepted}`), never the WS
+  `set state`. Optimistic UI shows the transition immediately and reconciles
+  against the next list refresh; if unconfirmed after 30 s the UI says so
+  rather than lying. Once Phase 3 opens a console socket for a server, its WS
+  `stats`/`power` frames supersede polling for that server.
+
 ## D-002 (2026-07-13): Recon method
 
 Live recon with credentials wasn't possible (none supplied); instead: 8-agent source recon over `ReFxHosting` @ ce9b32f (== public origin/main) + both mobile apps, adversarially cross-checked, plus unauthenticated live probes of production (`/health`, error/envelope/rate-limit headers, Engine.IO handshake) which matched source exactly. Confidence on the three perilous contracts (envelope, auth/refresh, console handshake): HIGH. Remaining live-verification items are listed at the end of [api-surface.md](api-surface.md).

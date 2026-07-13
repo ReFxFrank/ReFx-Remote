@@ -231,6 +231,34 @@ impl AuthManager {
         }
     }
 
+    /// Paginated variant of [`Self::authed_json`].
+    pub async fn authed_paged<T, B>(
+        &self,
+        method: Method,
+        path: &str,
+        body: Option<&B>,
+    ) -> Result<(T, Option<super::models::PageMeta>), PanelError>
+    where
+        T: serde::de::DeserializeOwned,
+        B: serde::Serialize + ?Sized,
+    {
+        let access = self.current_access().await?;
+        match self
+            .client
+            .json_with_meta(method.clone(), path, Some(&access), body)
+            .await
+        {
+            Err(PanelError::Unauthorized { .. }) => {
+                self.refresh_after_401(&access).await?;
+                let access = self.current_access().await?;
+                self.client
+                    .json_with_meta(method, path, Some(&access), body)
+                    .await
+            }
+            other => other,
+        }
+    }
+
     pub async fn profile(&self) -> Result<Profile, PanelError> {
         self.authed_json::<Profile, ()>(Method::GET, "/auth/me", None)
             .await

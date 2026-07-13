@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useAuth } from "./store/auth";
 import SignIn from "./screens/SignIn";
-import Home from "./screens/Home";
+import Servers from "./screens/Servers";
 
 export default function App() {
   const { status, init } = useAuth();
@@ -17,6 +17,6 @@ export default function App() {
       </main>
     );
   }
-  if (status === "signedIn") return <Home />;
+  if (status === "signedIn") return <Servers />;
   return <SignIn />;
 }

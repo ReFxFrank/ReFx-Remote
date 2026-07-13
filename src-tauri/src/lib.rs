@@ -44,6 +44,10 @@ pub fn run() {
             commands::auth_login,
             commands::auth_mfa_verify,
             commands::auth_logout,
+            commands::servers_list,
+            commands::server_get,
+            commands::server_stats,
+            commands::server_power,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -8,7 +8,8 @@ use tauri::State;
 
 use crate::panel::auth::LoginOutcome;
 use crate::panel::error::IpcError;
-use crate::panel::models::Profile;
+use crate::panel::models::{PageMeta, Profile};
+use crate::panel::servers::{self, LiveStats, PowerSignal, ServerDetail, ServerSummary};
 use crate::state::AppState;
 
 #[derive(Serialize)]
@@ -105,4 +106,58 @@ pub async fn auth_mfa_verify(
 #[tauri::command]
 pub async fn auth_logout(state: State<'_, AppState>) -> Result<(), IpcError> {
     state.auth.logout().await.map_err(Into::into)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerListResult {
+    pub servers: Vec<ServerSummary>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub meta: Option<PageMeta>,
+}
+
+#[tauri::command]
+pub async fn servers_list(
+    state: State<'_, AppState>,
+    q: Option<String>,
+) -> Result<ServerListResult, IpcError> {
+    let page = servers::list(&state.auth, q.as_deref(), 1, 100).await?;
+    Ok(ServerListResult {
+        servers: page.data,
+        meta: page.meta,
+    })
+}
+
+#[tauri::command]
+pub async fn server_get(
+    state: State<'_, AppState>,
+    server_id: String,
+) -> Result<ServerDetail, IpcError> {
+    servers::get(&state.auth, &server_id).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn server_stats(
+    state: State<'_, AppState>,
+    server_id: String,
+) -> Result<LiveStats, IpcError> {
+    servers::stats(&state.auth, &server_id)
+        .await
+        .map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn server_power(
+    state: State<'_, AppState>,
+    server_id: String,
+    signal: String,
+) -> Result<(), IpcError> {
+    let signal = PowerSignal::parse(&signal).ok_or(IpcError {
+        code: "VALIDATION",
+        message: "Unknown power action.".into(),
+        mfa_methods: None,
+    })?;
+    servers::power(&state.auth, &server_id, signal)
+        .await
+        .map_err(Into::into)
 }

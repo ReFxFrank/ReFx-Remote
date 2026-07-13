@@ -27,6 +27,10 @@ pub enum PanelError {
     NotFound { message: String },
     #[error("validation failed: {}", messages.join("; "))]
     Validation { messages: Vec<String> },
+    /// 409 — the action conflicts with current state (e.g. power while
+    /// installing). The server message is user-appropriate; show it.
+    #[error("conflict: {message}")]
+    Conflict { message: String },
     #[error("rate limited")]
     RateLimited { retry_after_secs: Option<u64> },
     #[error("server error {status}: {message}")]
@@ -54,6 +58,7 @@ impl PanelError {
             Self::Forbidden { .. } => "FORBIDDEN",
             Self::NotFound { .. } => "NOT_FOUND",
             Self::Validation { .. } => "VALIDATION",
+            Self::Conflict { .. } => "CONFLICT",
             Self::RateLimited { .. } => "RATE_LIMITED",
             Self::Server { .. } => "SERVER_ERROR",
             Self::Network(_) => "NETWORK",
@@ -90,6 +95,8 @@ impl PanelError {
             Self::NotFound { .. } => "That wasn't found — it may have been deleted.".into(),
             Self::Validation { messages } if !messages.is_empty() => messages.join(" "),
             Self::Validation { .. } => "The panel rejected that request as invalid.".into(),
+            Self::Conflict { message } if !message.is_empty() => message.clone(),
+            Self::Conflict { .. } => "That can't be done right now — the server is busy.".into(),
             Self::RateLimited { retry_after_secs } => match retry_after_secs {
                 Some(s) => format!("Slow down a moment — try again in {s} seconds."),
                 None => "Slow down a moment and try again.".into(),

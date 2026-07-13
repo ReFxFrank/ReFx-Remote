@@ -9,7 +9,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use super::error::PanelError;
-use super::models::{Envelope, ErrorBody};
+use super::models::{Envelope, ErrorBody, PageMeta};
 
 pub const DEFAULT_ORIGIN: &str = "https://api.refx.gg";
 
@@ -66,14 +66,33 @@ impl PanelClient {
         T: DeserializeOwned,
         B: Serialize + ?Sized,
     {
+        self.json_with_meta(method, path, bearer, body)
+            .await
+            .map(|(data, _)| data)
+    }
+
+    /// Like [`Self::json`] but also returns the pagination `meta` block
+    /// (present only on paginated responses).
+    pub async fn json_with_meta<T, B>(
+        &self,
+        method: Method,
+        path: &str,
+        bearer: Option<&str>,
+        body: Option<&B>,
+    ) -> Result<(T, Option<PageMeta>), PanelError>
+    where
+        T: DeserializeOwned,
+        B: Serialize + ?Sized,
+    {
         let res = self.send(method, path, bearer, body).await?;
         let status = res.status();
         let text = res.text().await?;
-        let env: Envelope<T> = serde_json::from_str(&text).map_err(|e| {
-            PanelError::Decode(format!("{status} {path}: {e}"))
-        })?;
-        env.data
-            .ok_or_else(|| PanelError::Decode(format!("{status} {path}: envelope had no data")))
+        let env: Envelope<T> = serde_json::from_str(&text)
+            .map_err(|e| PanelError::Decode(format!("{status} {path}: {e}")))?;
+        let data = env
+            .data
+            .ok_or_else(|| PanelError::Decode(format!("{status} {path}: envelope had no data")))?;
+        Ok((data, env.meta))
     }
 
     /// Request where success is a bodyless 2xx (e.g. logout → 204).
@@ -149,6 +168,7 @@ impl PanelClient {
             StatusCode::BAD_REQUEST | StatusCode::UNPROCESSABLE_ENTITY => PanelError::Validation {
                 messages: body.message.list(),
             },
+            StatusCode::CONFLICT => PanelError::Conflict { message },
             StatusCode::TOO_MANY_REQUESTS => PanelError::RateLimited {
                 retry_after_secs: retry_after,
             },
