@@ -44,7 +44,16 @@ export default function Console({ serverId, canCommand }: Props) {
       fontFamily: '"Cascadia Code", "Consolas", ui-monospace, monospace',
       fontSize: 13,
       scrollback: 5000,
-      theme: { background: "#09090b", foreground: "#e4e4e7", cursor: "#e4e4e7" },
+      theme: {
+        background: "#070b12",
+        foreground: "#eef6ff",
+        cursor: "#7db7ff",
+        selectionBackground: "rgba(0,114,255,0.35)",
+        black: "#0a111d",
+        blue: "#3aa0ff",
+        brightBlue: "#7db7ff",
+        cyan: "#22d3ee",
+      },
     });
     const fit = new FitAddon();
     const search = new SearchAddon();
@@ -195,23 +204,23 @@ export default function Console({ serverId, canCommand }: Props) {
   const live = conn.state === "live";
   const connColor =
     conn.state === "live"
-      ? "text-emerald-400"
+      ? "text-success"
       : conn.state === "failed"
-        ? "text-red-400"
-        : "text-amber-400";
+        ? "text-destructive"
+        : "text-warning";
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-zinc-800 bg-[#09090b]">
-      <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-1.5 text-xs">
+    <div className="refx-beam flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-white/[0.06] bg-[#070b12]">
+      <div className="flex items-center justify-between border-b border-white/[0.06] px-3 py-1.5 text-xs">
         <span className={`flex items-center gap-1.5 ${connColor}`}>
-          <span className="h-1.5 w-1.5 rounded-full bg-current" />
+          <span className={`h-1.5 w-1.5 rounded-full bg-current ${live ? "shadow-[0_0_8px_currentColor]" : ""}`} />
           {CONN_LABEL[conn.state] ?? conn.state}
           {conn.attempt ? ` (attempt ${conn.attempt})` : ""}
           {conn.detail ? ` — ${conn.detail}` : ""}
         </span>
         <button
           onClick={() => setShowSearch((s) => !s)}
-          className="text-zinc-500 hover:text-zinc-300"
+          className="text-muted-foreground hover:text-foreground/85"
           title="Search (Ctrl+F)"
         >
           Search
@@ -219,7 +228,7 @@ export default function Console({ serverId, canCommand }: Props) {
       </div>
 
       {showSearch && (
-        <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-1.5">
+        <div className="flex items-center gap-2 border-b border-white/[0.06] px-3 py-1.5">
           <input
             autoFocus
             value={query}
@@ -229,12 +238,12 @@ export default function Console({ serverId, canCommand }: Props) {
               if (e.key === "Escape") setShowSearch(false);
             }}
             placeholder="Find in console…"
-            className="flex-1 rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs outline-none focus:border-zinc-500"
+            className="flex-1 rounded border border-white/10 bg-[rgba(7,13,24,0.7)] px-2 py-1 text-xs outline-none focus:border-primary/60"
           />
-          <button onClick={() => runSearch("prev")} className="text-xs text-zinc-400 hover:text-zinc-200">
+          <button onClick={() => runSearch("prev")} className="text-xs text-muted-foreground hover:text-foreground">
             ↑
           </button>
-          <button onClick={() => runSearch("next")} className="text-xs text-zinc-400 hover:text-zinc-200">
+          <button onClick={() => runSearch("next")} className="text-xs text-muted-foreground hover:text-foreground">
             ↓
           </button>
         </div>
@@ -245,17 +254,17 @@ export default function Console({ serverId, canCommand }: Props) {
         {!atBottom && (
           <button
             onClick={jumpToBottom}
-            className="absolute bottom-3 right-4 rounded-full bg-zinc-700 px-3 py-1 text-xs text-zinc-100 shadow hover:bg-zinc-600"
+            className="absolute bottom-3 right-4 rounded-full btn-ghost px-3 py-1 text-xs shadow"
           >
             Jump to bottom ↓
           </button>
         )}
       </div>
 
-      <div className="border-t border-zinc-800 p-2">
-        {cmdError && <p className="mb-1 px-1 text-xs text-red-400">{cmdError}</p>}
+      <div className="border-t border-white/[0.06] p-2">
+        {cmdError && <p className="mb-1 px-1 text-xs text-destructive">{cmdError}</p>}
         <div className="flex items-center gap-2">
-          <span className="pl-1 text-zinc-500">›</span>
+          <span className="pl-1 text-muted-foreground">›</span>
           <input
             value={command}
             onChange={(e) => setCommand(e.target.value)}
@@ -268,7 +277,7 @@ export default function Console({ serverId, canCommand }: Props) {
                   : "Console offline — commands may not run"
                 : "You don't have permission to run commands"
             }
-            className="flex-1 rounded border border-zinc-800 bg-zinc-950 px-2 py-1.5 font-mono text-sm outline-none focus:border-zinc-500 disabled:opacity-50"
+            className="flex-1 rounded border border-white/[0.06] bg-[rgba(7,11,18,0.55)] px-2 py-1.5 font-mono text-sm outline-none focus:border-primary/60 disabled:opacity-50"
           />
         </div>
       </div>

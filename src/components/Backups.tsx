@@ -16,14 +16,14 @@ function fmtDate(iso?: string | null): string {
 function stateColor(s: Backup["state"]): string {
   switch (s) {
     case "COMPLETED":
-      return "text-emerald-400";
+      return "text-success";
     case "FAILED":
-      return "text-red-400";
+      return "text-destructive";
     case "PENDING":
     case "IN_PROGRESS":
-      return "text-amber-400";
+      return "text-warning";
     default:
-      return "text-zinc-400";
+      return "text-muted-foreground";
   }
 }
 
@@ -130,20 +130,20 @@ export default function Backups({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950">
-      <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-1.5 text-xs">
-        <span className="text-zinc-400">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-white/[0.06] bg-[rgba(7,11,18,0.55)]">
+      <div className="flex items-center justify-between border-b border-white/[0.06] px-3 py-1.5 text-xs">
+        <span className="text-muted-foreground">
           {backups.length} backup{backups.length === 1 ? "" : "s"}
         </span>
         <div className="flex items-center gap-2">
-          <button onClick={() => void load()} className="text-zinc-400 hover:text-zinc-200">
+          <button onClick={() => void load()} className="text-muted-foreground hover:text-foreground">
             Refresh
           </button>
           {canCreate && (
             <button
               onClick={() => void create()}
               disabled={busy}
-              className="rounded bg-zinc-700 px-2 py-1 text-zinc-100 hover:bg-zinc-600 disabled:opacity-40"
+              className="rounded btn-ghost px-2 py-1 disabled:opacity-40"
             >
               Create backup
             </button>
@@ -151,26 +151,26 @@ export default function Backups({
         </div>
       </div>
 
-      {error && <p className="border-b border-red-900 bg-red-950/40 px-3 py-1.5 text-xs text-red-300">{error}</p>}
+      {error && <p className="border-b border-destructive/40 bg-destructive/10 px-3 py-1.5 text-xs text-destructive">{error}</p>}
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {loading ? (
-          <p className="p-6 text-center text-sm text-zinc-500">Loading…</p>
+          <p className="p-6 text-center text-sm text-muted-foreground">Loading…</p>
         ) : backups.length === 0 ? (
-          <p className="p-6 text-center text-sm text-zinc-500">
+          <p className="p-6 text-center text-sm text-muted-foreground">
             No backups yet.{canCreate ? " Create one to snapshot this server." : ""}
           </p>
         ) : (
           <ul>
             {backups.map((b) => (
-              <li key={b.id} className="group border-b border-zinc-900 px-3 py-2 hover:bg-zinc-900/50">
+              <li key={b.id} className="group border-b border-white/[0.05] px-3 py-2 hover:bg-white/[0.03]">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="truncate text-sm text-zinc-200">{b.name || "(unnamed)"}</span>
-                      {b.isLocked && <span title="Locked" className="text-xs text-amber-400">🔒</span>}
+                      <span className="truncate text-sm text-foreground">{b.name || "(unnamed)"}</span>
+                      {b.isLocked && <span title="Locked" className="text-xs text-warning">🔒</span>}
                     </div>
-                    <div className="mt-0.5 flex items-center gap-2 text-xs text-zinc-500">
+                    <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
                       <span className={stateColor(b.state)}>
                         {b.state === "IN_PROGRESS"
                           ? `Backing up… ${Math.round(b.progressPct ?? 0)}%`
@@ -178,31 +178,31 @@ export default function Backups({
                       </span>
                       <span>· {fmtSize(b.sizeBytes)}</span>
                       {b.createdAt && <span>· {fmtDate(b.createdAt)}</span>}
-                      {b.error && <span className="text-red-400">· {b.error}</span>}
+                      {b.error && <span className="text-destructive">· {b.error}</span>}
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2 text-xs opacity-0 transition group-hover:opacity-100">
                     {b.state === "COMPLETED" && (
-                      <button onClick={() => void download(b)} className="text-zinc-400 hover:text-zinc-200">
+                      <button onClick={() => void download(b)} className="text-muted-foreground hover:text-foreground">
                         Download
                       </button>
                     )}
                     {canRestore && b.state === "COMPLETED" && (
                       <button
                         onClick={() => setConfirm({ kind: "restore", backup: b })}
-                        className="text-amber-400 hover:text-amber-300"
+                        className="text-warning/80 hover:text-warning"
                       >
                         Restore
                       </button>
                     )}
-                    <button onClick={() => void toggleLock(b)} className="text-zinc-400 hover:text-zinc-200">
+                    <button onClick={() => void toggleLock(b)} className="text-muted-foreground hover:text-foreground">
                       {b.isLocked ? "Unlock" : "Lock"}
                     </button>
                     {canDelete && (
                       <button
                         onClick={() => setConfirm({ kind: "delete", backup: b })}
                         disabled={b.isLocked}
-                        className="text-red-400 hover:text-red-300 disabled:opacity-30"
+                        className="text-destructive/80 hover:text-destructive disabled:opacity-30"
                         title={b.isLocked ? "Unlock it first" : undefined}
                       >
                         Delete

@@ -83,11 +83,11 @@ export default function ServerDetailPanel({ server }: { server: ServerSummary })
     <div className="flex h-full flex-col p-6">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <span className={`h-3 w-3 rounded-full ${stateDot(shownState)}`} />
-            <h1 className="truncate text-xl font-semibold">{server.name}</h1>
+            <h1 className="truncate text-xl font-semibold tracking-tight">{server.name}</h1>
           </div>
-          <p className="mt-1 text-sm text-zinc-400">
+          <p className="mt-1 text-sm text-muted-foreground">
             {server.template?.name}
             {server.node?.name ? ` · ${server.node.name}` : ""} · {stateLabel(shownState)}
             {p ? " (waiting for the panel…)" : ""}
@@ -96,7 +96,7 @@ export default function ServerDetailPanel({ server }: { server: ServerSummary })
         {address && (
           <button
             onClick={copyAddress}
-            className="shrink-0 rounded-md border border-zinc-700 px-3 py-1.5 text-sm font-mono text-zinc-200 transition hover:border-zinc-500"
+            className="refx-input shrink-0 rounded-md px-3 py-1.5 font-mono text-sm text-foreground transition hover:border-primary/50"
             title="Copy connect address"
           >
             {copied ? "Copied!" : address}
@@ -105,13 +105,13 @@ export default function ServerDetailPanel({ server }: { server: ServerSummary })
       </div>
 
       {overdue && (
-        <p className="mt-3 rounded-md border border-amber-900 bg-amber-950/40 px-3 py-2 text-sm text-amber-200">
+        <p className="mt-3 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
           The panel hasn't confirmed this yet — it may still be working, or the
           server may have failed to change state.
         </p>
       )}
       {actionError && (
-        <p className="mt-3 rounded-md border border-red-900 bg-red-950/50 px-3 py-2 text-sm text-red-300">
+        <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive-foreground">
           {actionError}
         </p>
       )}
@@ -152,17 +152,17 @@ export default function ServerDetailPanel({ server }: { server: ServerSummary })
         <Stat label="Uptime" value={stats ? (uptime(stats.uptimeMs) ?? "—") : "—"} />
       </div>
 
-      {statsError && <p className="mt-3 text-xs text-zinc-500">{statsError}</p>}
+      {statsError && <p className="mt-3 text-xs text-muted-foreground">{statsError}</p>}
 
-      <div className="mt-6 flex items-center gap-1 border-b border-zinc-800">
+      <div className="mt-6 flex items-center gap-1 border-b border-white/[0.06]">
         {(["console", "files", "backups"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`-mb-px border-b-2 px-3 py-1.5 text-sm capitalize transition ${
               tab === t
-                ? "border-zinc-100 text-zinc-100"
-                : "border-transparent text-zinc-500 hover:text-zinc-300"
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
             {t}
@@ -211,15 +211,18 @@ function Stat({
   bar?: number;
 }) {
   return (
-    <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-3">
-      <div className="text-xs uppercase tracking-wide text-zinc-500">{label}</div>
-      <div className="mt-1 flex items-baseline gap-1">
-        <span className="text-lg font-semibold">{value}</span>
-        {sub && <span className="text-xs text-zinc-500">{sub}</span>}
+    <div className="refx-card p-3">
+      <div className="refx-eyebrow">{label}</div>
+      <div className="mt-1.5 flex items-baseline gap-1">
+        <span className="text-lg font-semibold tracking-tight text-foreground">{value}</span>
+        {sub && <span className="text-xs text-muted-foreground">{sub}</span>}
       </div>
       {bar != null && (
-        <div className="mt-2 h-1 overflow-hidden rounded bg-zinc-800">
-          <div className="h-full bg-emerald-500" style={{ width: `${bar}%` }} />
+        <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/[0.06]">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-[rgba(40,140,255,1)] to-[rgba(0,114,255,1)]"
+            style={{ width: `${bar}%` }}
+          />
         </div>
       )}
     </div>

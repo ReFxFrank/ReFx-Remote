@@ -24,30 +24,30 @@ export default function TypedConfirm({
 }: Props) {
   const [typed, setTyped] = useState("");
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-md rounded-xl border border-zinc-800 bg-zinc-900 p-6">
-        <h2 className={`text-lg font-semibold ${danger ? "text-red-300" : "text-zinc-100"}`}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="refx-panel refx-beam w-full max-w-md p-6">
+        <h2 className={`text-lg font-semibold ${danger ? "text-destructive" : "text-foreground"}`}>
           {title}
         </h2>
-        <div className="mt-2 text-sm text-zinc-300">{body}</div>
-        <p className="mt-3 text-sm text-zinc-400">
-          Type <span className="font-mono text-zinc-200">{confirmWord}</span> to confirm.
+        <div className="mt-2 text-sm text-foreground/85">{body}</div>
+        <p className="mt-3 text-sm text-muted-foreground">
+          Type <span className="font-mono text-foreground">{confirmWord}</span> to confirm.
         </p>
         <input
           autoFocus
           value={typed}
           onChange={(e) => setTyped(e.target.value)}
-          className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 font-mono text-sm outline-none focus:border-zinc-400"
+          className="mt-2 w-full rounded-md border border-white/10 bg-[rgba(7,13,24,0.7)] px-3 py-2 font-mono text-sm outline-none focus:border-primary/60"
         />
         <div className="mt-4 flex justify-end gap-2">
-          <button onClick={onCancel} className="rounded-md px-3 py-1.5 text-sm text-zinc-300 hover:text-white">
+          <button onClick={onCancel} className="rounded-md px-3 py-1.5 text-sm text-foreground/85 hover:text-white">
             Cancel
           </button>
           <button
             disabled={typed !== confirmWord}
             onClick={onConfirm}
             className={`rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40 ${
-              danger ? "bg-red-600 hover:bg-red-500" : "bg-emerald-600 hover:bg-emerald-500"
+              danger ? "btn-danger" : "btn-primary"
             }`}
           >
             {confirmLabel}

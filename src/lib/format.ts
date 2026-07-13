@@ -11,25 +11,25 @@ export function stateLabel(s: ServerState): string {
   }
 }
 
-// Tailwind dot color per state. Running=green, transitional=amber, dead=zinc,
-// crashed/suspended=red.
+// Dot color per state, in the ReFx palette. Running=success, transitional=
+// warning, crashed/suspended=destructive, dead=muted.
 export function stateDot(s: ServerState): string {
   switch (s) {
     case "RUNNING":
-      return "bg-emerald-500";
+      return "bg-success shadow-[0_0_8px_-1px] shadow-success";
     case "STARTING":
     case "STOPPING":
     case "INSTALLING":
     case "REINSTALLING":
     case "SWITCHING_GAME":
     case "TRANSFERRING":
-      return "bg-amber-400";
+      return "bg-warning";
     case "CRASHED":
     case "SUSPENDED":
     case "PENDING_PAYMENT":
-      return "bg-red-500";
+      return "bg-destructive";
     default:
-      return "bg-zinc-500";
+      return "bg-muted-foreground/60";
   }
 }
 

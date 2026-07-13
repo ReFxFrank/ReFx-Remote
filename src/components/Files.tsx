@@ -186,17 +186,17 @@ export default function Files({ serverId, canWrite }: { serverId: string; canWri
   // ── Editor view ────────────────────────────────────────────────────────
   if (editing) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950">
-        <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-1.5 text-sm">
-          <span className="truncate font-mono text-zinc-300">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-white/[0.06] bg-[rgba(7,11,18,0.55)]">
+        <div className="flex items-center justify-between border-b border-white/[0.06] px-3 py-1.5 text-sm">
+          <span className="truncate font-mono text-foreground/85">
             {editing.path}
-            {dirty && <span className="ml-2 text-amber-400">●</span>}
+            {dirty && <span className="ml-2 text-warning">●</span>}
           </span>
           <div className="flex items-center gap-2">
             <button
               onClick={() => void saveFile()}
               disabled={busy || !canWrite || !dirty}
-              className="rounded bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-40"
+              className="rounded btn-primary px-3 py-1 text-xs font-medium text-white disabled:opacity-40"
             >
               Save
             </button>
@@ -205,13 +205,13 @@ export default function Files({ serverId, canWrite }: { serverId: string; canWri
                 if (dirty && !window.confirm("Discard unsaved changes?")) return;
                 setEditing(null);
               }}
-              className="rounded border border-zinc-700 px-3 py-1 text-xs text-zinc-300 hover:border-zinc-500"
+              className="rounded border border-white/10 px-3 py-1 text-xs text-foreground/85 hover:border-primary/50"
             >
               Close
             </button>
           </div>
         </div>
-        {error && <p className="border-b border-red-900 bg-red-950/40 px-3 py-1.5 text-xs text-red-300">{error}</p>}
+        {error && <p className="border-b border-destructive/40 bg-destructive/10 px-3 py-1.5 text-xs text-destructive">{error}</p>}
         <div className="min-h-0 flex-1">
           <FileEditor
             name={editing.name}
@@ -228,18 +228,18 @@ export default function Files({ serverId, canWrite }: { serverId: string; canWri
   const segments = path === "/" ? [] : path.replace(/^\//, "").split("/");
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950">
-      <div className="flex items-center justify-between gap-2 border-b border-zinc-800 px-3 py-1.5">
-        <div className="flex min-w-0 items-center gap-1 text-xs text-zinc-400">
-          <button onClick={() => setPath("/")} className="hover:text-zinc-200">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-white/[0.06] bg-[rgba(7,11,18,0.55)]">
+      <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] px-3 py-1.5">
+        <div className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+          <button onClick={() => setPath("/")} className="hover:text-foreground">
             /
           </button>
           {segments.map((seg, i) => {
             const to = "/" + segments.slice(0, i + 1).join("/");
             return (
               <span key={to} className="flex items-center gap-1">
-                <span className="text-zinc-600">/</span>
-                <button onClick={() => setPath(to)} className="truncate hover:text-zinc-200">
+                <span className="text-muted-foreground/70">/</span>
+                <button onClick={() => setPath(to)} className="truncate hover:text-foreground">
                   {seg}
                 </button>
               </span>
@@ -248,19 +248,19 @@ export default function Files({ serverId, canWrite }: { serverId: string; canWri
         </div>
         <div className="flex shrink-0 items-center gap-2 text-xs">
           {path !== "/" && (
-            <button onClick={() => setPath(parentPath(path))} className="text-zinc-400 hover:text-zinc-200">
+            <button onClick={() => setPath(parentPath(path))} className="text-muted-foreground hover:text-foreground">
               ↑ Up
             </button>
           )}
-          <button onClick={() => void load(path)} className="text-zinc-400 hover:text-zinc-200">
+          <button onClick={() => void load(path)} className="text-muted-foreground hover:text-foreground">
             Refresh
           </button>
           {canWrite && (
             <>
-              <button onClick={() => void newFolder()} disabled={busy} className="text-zinc-400 hover:text-zinc-200 disabled:opacity-40">
+              <button onClick={() => void newFolder()} disabled={busy} className="text-muted-foreground hover:text-foreground disabled:opacity-40">
                 New folder
               </button>
-              <button onClick={() => void upload()} disabled={busy} className="rounded bg-zinc-700 px-2 py-1 text-zinc-100 hover:bg-zinc-600 disabled:opacity-40">
+              <button onClick={() => void upload()} disabled={busy} className="rounded btn-ghost px-2 py-1 disabled:opacity-40">
                 Upload
               </button>
             </>
@@ -268,50 +268,50 @@ export default function Files({ serverId, canWrite }: { serverId: string; canWri
         </div>
       </div>
 
-      {notice && <p className="border-b border-zinc-800 bg-zinc-900 px-3 py-1 text-xs text-emerald-300">{notice}</p>}
-      {error && <p className="border-b border-red-900 bg-red-950/40 px-3 py-1.5 text-xs text-red-300">{error}</p>}
+      {notice && <p className="border-b border-white/[0.06] bg-white/[0.03] px-3 py-1 text-xs text-success">{notice}</p>}
+      {error && <p className="border-b border-destructive/40 bg-destructive/10 px-3 py-1.5 text-xs text-destructive">{error}</p>}
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {loading ? (
-          <p className="p-6 text-center text-sm text-zinc-500">Loading…</p>
+          <p className="p-6 text-center text-sm text-muted-foreground">Loading…</p>
         ) : entries.length === 0 ? (
-          <p className="p-6 text-center text-sm text-zinc-500">This folder is empty.</p>
+          <p className="p-6 text-center text-sm text-muted-foreground">This folder is empty.</p>
         ) : (
           <table className="w-full text-sm">
             <tbody>
               {entries.map((e) => (
-                <tr key={e.name} className="group border-b border-zinc-900 hover:bg-zinc-900/60">
+                <tr key={e.name} className="group border-b border-white/[0.05] hover:bg-white/[0.03]">
                   <td className="w-full px-3 py-1.5">
                     <button
                       onClick={() => void openFile(e)}
                       className="flex items-center gap-2 text-left"
                     >
-                      <span className="text-zinc-500">{e.isDir ? "📁" : "📄"}</span>
-                      <span className={e.isDir ? "text-zinc-200" : "text-zinc-300"}>{e.name}</span>
+                      <span className="text-muted-foreground">{e.isDir ? "📁" : "📄"}</span>
+                      <span className={e.isDir ? "text-foreground" : "text-foreground/85"}>{e.name}</span>
                     </button>
                   </td>
-                  <td className="whitespace-nowrap px-3 py-1.5 text-right text-xs text-zinc-500">
+                  <td className="whitespace-nowrap px-3 py-1.5 text-right text-xs text-muted-foreground">
                     {e.isDir ? "" : fmtSize(e.size)}
                   </td>
                   <td className="whitespace-nowrap px-3 py-1.5 text-right">
                     <span className="flex items-center justify-end gap-2 text-xs opacity-0 transition group-hover:opacity-100">
                       {!e.isDir && (
-                        <button onClick={() => void download(e)} className="text-zinc-400 hover:text-zinc-200">
+                        <button onClick={() => void download(e)} className="text-muted-foreground hover:text-foreground">
                           Download
                         </button>
                       )}
                       {canWrite && !e.isDir && ARCHIVE_RE.test(e.name) && (
-                        <button onClick={() => void decompress(e)} className="text-zinc-400 hover:text-zinc-200">
+                        <button onClick={() => void decompress(e)} className="text-muted-foreground hover:text-foreground">
                           Extract
                         </button>
                       )}
                       {canWrite && (
-                        <button onClick={() => void rename(e)} className="text-zinc-400 hover:text-zinc-200">
+                        <button onClick={() => void rename(e)} className="text-muted-foreground hover:text-foreground">
                           Rename
                         </button>
                       )}
                       {canWrite && (
-                        <button onClick={() => void remove(e)} className="text-red-400 hover:text-red-300">
+                        <button onClick={() => void remove(e)} className="text-destructive/80 hover:text-destructive">
                           Delete
                         </button>
                       )}

@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useAuth } from "./store/auth";
 import SignIn from "./screens/SignIn";
 import Servers from "./screens/Servers";
+import { Aurora } from "./components/Logo";
 
 export default function App() {
   const { status, init } = useAuth();
@@ -10,13 +11,18 @@ export default function App() {
     void init();
   }, [init]);
 
-  if (status === "loading") {
-    return (
-      <main className="flex h-screen items-center justify-center bg-zinc-950">
-        <p className="text-sm text-zinc-500">Starting…</p>
-      </main>
-    );
-  }
-  if (status === "signedIn") return <Servers />;
-  return <SignIn />;
+  return (
+    <>
+      <Aurora />
+      {status === "loading" ? (
+        <main className="flex h-screen items-center justify-center">
+          <p className="text-sm text-muted-foreground">Starting…</p>
+        </main>
+      ) : status === "signedIn" ? (
+        <Servers />
+      ) : (
+        <SignIn />
+      )}
+    </>
+  );
 }

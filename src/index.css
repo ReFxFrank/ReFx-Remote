@@ -1,1 +1,291 @@
 @import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
+
+/*
+ * ReFx Glassy — the refx.gg brand design system, ported to the desktop app.
+ * Deep navy/blue-black, electric-blue primary, glass surfaces, aurora glow.
+ * Dark-only (the product is designed dark-first).
+ */
+@theme {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+
+  --radius-lg: 0.625rem;
+  --radius-md: calc(0.625rem - 2px);
+  --radius-sm: calc(0.625rem - 4px);
+
+  --color-background: hsl(218 47% 5%);
+  --color-foreground: hsl(213 100% 97%);
+  --color-card: hsl(217 47% 11%);
+  --color-card-foreground: hsl(213 100% 97%);
+  --color-popover: hsl(217 49% 9%);
+  --color-popover-foreground: hsl(213 100% 97%);
+  --color-primary: hsl(213 100% 50%);
+  --color-primary-foreground: hsl(0 0% 100%);
+  --color-secondary: hsl(217 44% 14%);
+  --color-secondary-foreground: hsl(213 100% 92%);
+  --color-muted: hsl(217 40% 13%);
+  --color-muted-foreground: hsl(213 45% 72%);
+  --color-accent: hsl(215 40% 17%);
+  --color-accent-foreground: hsl(213 100% 97%);
+  --color-destructive: hsl(0 74% 58%);
+  --color-destructive-foreground: hsl(0 0% 100%);
+  --color-success: hsl(152 56% 46%);
+  --color-success-foreground: hsl(210 40% 98%);
+  --color-warning: hsl(38 92% 56%);
+  --color-warning-foreground: hsl(218 47% 8%);
+  --color-border: hsl(214 38% 22%);
+  --color-input: hsl(214 34% 26%);
+  --color-ring: hsl(213 100% 60%);
+}
+
+:root {
+  --radius: 0.625rem;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    /* Deep navy app backdrop with faint, wide radial blue glows. */
+    background-color: #070b12;
+    background-image:
+      radial-gradient(900px 600px at 18% -8%, rgba(0, 114, 255, 0.1), transparent 60%),
+      radial-gradient(1100px 700px at 100% 0%, rgba(88, 167, 211, 0.07), transparent 55%),
+      radial-gradient(800px 800px at 50% 120%, rgba(0, 114, 255, 0.05), transparent 60%);
+    background-attachment: fixed;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: hsl(214 38% 22% / 0.5);
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(213 100% 50% / 0.5);
+  }
+}
+
+/*
+ * ReFx Glassy building blocks (ported verbatim from apps/web so the desktop
+ * app speaks the exact same visual language).
+ */
+@layer components {
+  .refx-panel {
+    position: relative;
+    background: linear-gradient(180deg, rgba(10, 18, 32, 0.96), rgba(7, 13, 24, 0.96));
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 14px 40px -22px rgba(0, 0, 0, 0.8);
+  }
+  .refx-card {
+    position: relative;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015));
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: var(--radius);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 10px 30px -18px rgba(0, 0, 0, 0.75);
+  }
+  .refx-eyebrow {
+    text-transform: uppercase;
+    font-size: 0.6875rem;
+    line-height: 1;
+    letter-spacing: 0.14em;
+    font-weight: 600;
+    color: rgba(140, 196, 255, 0.7);
+  }
+  .refx-input {
+    background: linear-gradient(180deg, rgba(7, 13, 24, 0.7), rgba(10, 18, 32, 0.55));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 1px 2px rgba(0, 0, 0, 0.4);
+  }
+  .refx-primary-surface {
+    background: linear-gradient(180deg, rgba(40, 140, 255, 1), rgba(0, 114, 255, 1));
+    border: 1px solid rgba(120, 185, 255, 0.55);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset, 0 8px 22px -10px rgba(0, 114, 255, 0.6);
+  }
+  .refx-primary-surface:hover {
+    filter: brightness(1.08);
+  }
+
+  /* Button visual variants (size/rounding applied at the call site). */
+  .btn-primary {
+    background: linear-gradient(180deg, rgba(40, 140, 255, 1), rgba(0, 114, 255, 1));
+    border: 1px solid rgba(120, 185, 255, 0.55);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.22) inset, 0 8px 22px -12px rgba(0, 114, 255, 0.65);
+    color: #fff;
+    transition: filter 0.15s ease, box-shadow 0.15s ease;
+  }
+  .btn-primary:hover:not(:disabled) {
+    filter: brightness(1.1);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.28) inset, 0 10px 28px -10px rgba(0, 114, 255, 0.8);
+  }
+  .btn-ghost {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: hsl(213 100% 92%);
+    transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+  }
+  .btn-ghost:hover:not(:disabled) {
+    border-color: rgba(0, 114, 255, 0.4);
+    background: rgba(0, 114, 255, 0.1);
+    color: hsl(213 100% 97%);
+  }
+  .btn-danger {
+    background: rgba(220, 38, 38, 0.08);
+    border: 1px solid rgba(248, 113, 113, 0.35);
+    color: hsl(0 90% 76%);
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+  }
+  .btn-danger:hover:not(:disabled) {
+    background: rgba(220, 38, 38, 0.18);
+    border-color: rgba(248, 113, 113, 0.6);
+  }
+}
+
+@utility refx-glow {
+  box-shadow: 0 0 0 1px rgba(0, 114, 255, 0.18), 0 10px 40px -12px rgba(0, 114, 255, 0.45);
+}
+
+@layer utilities {
+  /* Thin luminous top-edge beam. */
+  .refx-beam::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(125, 183, 255, 0.55), transparent);
+    pointer-events: none;
+  }
+  /* Card hover grammar: lift + blue border-brighten + soft glow. */
+  .refx-hover-card {
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.35s ease, box-shadow 0.35s ease;
+  }
+  @media (hover: hover) {
+    .refx-hover-card:hover {
+      border-color: rgba(0, 114, 255, 0.35);
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.07) inset, 0 0 0 1px rgba(0, 114, 255, 0.16),
+        0 16px 44px -18px rgba(0, 114, 255, 0.4);
+    }
+  }
+  /* Diagonal glass sheen for saturated primary CTAs. */
+  .refx-sheen {
+    overflow: hidden;
+  }
+  .refx-sheen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.25) 50%, transparent 65%);
+    transform: translateX(-160%);
+  }
+  @media (hover: hover) {
+    .refx-sheen:hover::after {
+      animation: refxSheen 0.9s ease;
+    }
+  }
+}
+
+/* ── Aurora backdrop ── oversized so drift never exposes an edge. */
+.refx-aurora {
+  position: absolute;
+  inset: -25%;
+  pointer-events: none;
+  will-change: transform;
+}
+.refx-aurora-a {
+  background: radial-gradient(42% 38% at 50% 18%, rgba(0, 114, 255, 0.16), transparent 70%);
+  animation: refxAurora 34s ease-in-out infinite alternate;
+}
+.refx-aurora-b {
+  background: radial-gradient(30% 30% at 78% 30%, rgba(34, 211, 238, 0.09), transparent 70%);
+  animation: refxAurora 26s ease-in-out infinite alternate-reverse;
+  animation-delay: -8s;
+}
+.refx-aurora-c {
+  background: radial-gradient(34% 32% at 22% 32%, rgba(125, 183, 255, 0.06), transparent 70%);
+  animation: refxAurora 44s ease-in-out infinite alternate;
+  animation-delay: -18s;
+}
+@keyframes refxAurora {
+  from {
+    transform: translate3d(-2.5%, -1.5%, 0) scale(1) rotate(-1deg);
+  }
+  to {
+    transform: translate3d(2.5%, 2%, 0) scale(1.06) rotate(1deg);
+  }
+}
+
+/* Headline shimmer for the brand wordmark / hero text. */
+.refx-text-shimmer {
+  background-image: linear-gradient(90deg, #3aa0ff, #9dccff 35%, #22d3ee 60%, #3aa0ff);
+  background-size: 200% auto;
+  background-position: 0% center;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: refxTextShimmer 8s linear infinite;
+}
+@keyframes refxTextShimmer {
+  to {
+    background-position: 200% center;
+  }
+}
+
+/* Staggered entrance. */
+@keyframes refxEnter {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.refx-enter {
+  opacity: 0;
+  animation: refxEnter 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.refx-enter-1 { animation-delay: 0.05s; }
+.refx-enter-2 { animation-delay: 0.13s; }
+.refx-enter-3 { animation-delay: 0.22s; }
+
+@keyframes refxSheen {
+  to {
+    transform: translateX(160%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .refx-aurora,
+  .refx-text-shimmer,
+  .refx-enter {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* xterm console fills its host. */
+.xterm {
+  height: 100%;
+  padding: 8px;
+}

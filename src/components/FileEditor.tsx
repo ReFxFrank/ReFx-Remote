@@ -73,5 +73,5 @@ export default function FileEditor({ name, initial, onChange, bindApi }: Props) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name, initial]);
 
-  return <div ref={host} className="h-full overflow-hidden rounded border border-zinc-800" />;
+  return <div ref={host} className="h-full overflow-hidden rounded border border-white/[0.06]" />;
 }

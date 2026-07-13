@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useAuth } from "../store/auth";
+import { LogoMark } from "../components/Logo";
 
 export default function SignIn() {
   const { status, login, verifyMfa, backToSignIn, busy, error, mfaMethods } = useAuth();
@@ -12,10 +13,7 @@ export default function SignIn() {
   const mfa = status === "mfa";
   const hasTotp = mfaMethods.includes("totp");
   const hasRecovery = mfaMethods.includes("recovery");
-  // Passkey-only accounts can't complete MFA here (no WebAuthn in v1) —
-  // say so honestly instead of presenting a code box that can never work.
   const passkeyOnly = mfa && !hasTotp && !hasRecovery;
-  // Recovery-only accounts go straight to recovery mode.
   const recoveryMode = useRecovery || (hasRecovery && !hasTotp);
 
   function onSubmit(e: FormEvent) {
@@ -28,14 +26,20 @@ export default function SignIn() {
     }
   }
 
+  const input =
+    "mt-1 w-full rounded-md refx-input px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-ring/40";
+
   return (
-    <main className="flex h-screen items-center justify-center bg-zinc-950 text-zinc-100">
+    <main className="flex h-screen items-center justify-center px-4">
       <form
         onSubmit={onSubmit}
-        className="w-full max-w-sm rounded-xl border border-zinc-800 bg-zinc-900 p-8 shadow-xl"
+        className="refx-panel refx-beam refx-enter w-full max-w-sm overflow-hidden p-8"
       >
-        <h1 className="text-xl font-semibold tracking-tight">ReFx Desktop</h1>
-        <p className="mt-1 text-sm text-zinc-400">
+        <div className="flex items-center gap-2.5">
+          <LogoMark size={30} />
+          <span className="text-lg font-semibold tracking-tight">ReFx Desktop</span>
+        </div>
+        <p className="mt-2 text-sm text-muted-foreground">
           {mfa
             ? passkeyOnly
               ? "This account uses a passkey for two-factor sign-in."
@@ -45,13 +49,13 @@ export default function SignIn() {
 
         {mfa ? (
           passkeyOnly ? (
-            <p className="mt-6 rounded-md border border-amber-900 bg-amber-950/40 px-3 py-2 text-sm text-amber-200">
-              ReFx Desktop can't use passkeys yet. Sign in on refx.gg and add an
-              authenticator app (or keep recovery codes handy), then try again.
+            <p className="mt-6 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
+              ReFx Desktop can't use passkeys yet. Sign in on refx.gg and add an authenticator app
+              (or keep recovery codes handy), then try again.
             </p>
           ) : (
             <>
-              <label className="mt-6 block text-sm text-zinc-300" htmlFor="code">
+              <label className="refx-eyebrow mt-6 block" htmlFor="code">
                 {recoveryMode ? "Recovery code" : "Authenticator code"}
               </label>
               <input
@@ -61,9 +65,7 @@ export default function SignIn() {
                 autoComplete="one-time-code"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                className={`mt-1 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 font-mono outline-none focus:border-zinc-400 ${
-                  recoveryMode ? "" : "text-center tracking-[0.3em]"
-                }`}
+                className={`${input} font-mono ${recoveryMode ? "" : "text-center tracking-[0.3em]"}`}
                 placeholder={recoveryMode ? "recovery code" : "123456"}
               />
               {hasRecovery && hasTotp && (
@@ -73,7 +75,7 @@ export default function SignIn() {
                     setUseRecovery(!useRecovery);
                     setCode("");
                   }}
-                  className="mt-2 text-xs text-zinc-400 underline-offset-2 hover:text-zinc-200 hover:underline"
+                  className="mt-2 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
                 >
                   {useRecovery ? "Use your authenticator code" : "Use a recovery code instead"}
                 </button>
@@ -82,7 +84,7 @@ export default function SignIn() {
           )
         ) : (
           <>
-            <label className="mt-6 block text-sm text-zinc-300" htmlFor="email">
+            <label className="refx-eyebrow mt-6 block" htmlFor="email">
               Email
             </label>
             <input
@@ -92,10 +94,10 @@ export default function SignIn() {
               autoComplete="username"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 outline-none focus:border-zinc-400"
+              className={input}
               placeholder="you@example.com"
             />
-            <label className="mt-4 block text-sm text-zinc-300" htmlFor="password">
+            <label className="refx-eyebrow mt-4 block" htmlFor="password">
               Password
             </label>
             <input
@@ -104,14 +106,14 @@ export default function SignIn() {
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 outline-none focus:border-zinc-400"
+              className={input}
             />
-            <label className="mt-4 flex items-center gap-2 text-sm text-zinc-400">
+            <label className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
               <input
                 type="checkbox"
                 checked={remember}
                 onChange={(e) => setRemember(e.target.checked)}
-                className="h-4 w-4 rounded border-zinc-700 bg-zinc-950"
+                className="h-4 w-4 rounded border-border bg-transparent accent-primary"
               />
               Keep me signed in
             </label>
@@ -119,7 +121,7 @@ export default function SignIn() {
         )}
 
         {error && (
-          <p className="mt-4 rounded-md border border-red-900 bg-red-950/50 px-3 py-2 text-sm text-red-300">
+          <p className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive-foreground">
             {error}
           </p>
         )}
@@ -128,7 +130,7 @@ export default function SignIn() {
           <button
             type="submit"
             disabled={busy}
-            className="mt-6 w-full rounded-md bg-zinc-100 px-3 py-2 font-medium text-zinc-950 transition hover:bg-white disabled:opacity-50"
+            className="btn-primary refx-sheen relative mt-6 w-full rounded-md px-3 py-2.5 text-sm font-semibold disabled:opacity-50"
           >
             {busy ? "Working…" : mfa ? "Verify" : "Sign in"}
           </button>
@@ -142,7 +144,7 @@ export default function SignIn() {
               setCode("");
               backToSignIn();
             }}
-            className="mt-3 w-full text-sm text-zinc-400 hover:text-zinc-200"
+            className="mt-3 w-full text-sm text-muted-foreground hover:text-foreground"
           >
             ← Back to sign-in
           </button>
