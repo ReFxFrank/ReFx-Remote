@@ -73,6 +73,47 @@ export type ServerListResult = { servers: ServerSummary[]; meta?: PageMeta };
 
 export type PowerSignal = "start" | "stop" | "restart" | "kill";
 
+export type Startup = { startupCommand?: string | null; dockerImage?: string | null };
+export type VarRules = { options?: string[] | null; regex?: string | null; required?: boolean | null };
+export type Variable = {
+  envName: string;
+  displayName?: string | null;
+  description?: string | null;
+  type?: string | null;
+  rules?: VarRules | null;
+  userEditable: boolean;
+  userViewable: boolean;
+  value: string;
+  isSet?: boolean | null;
+};
+export type ScheduleTask = {
+  id?: string | null;
+  action?: string | null;
+  payload?: string | null;
+  timeOffsetMs?: number | null;
+  sortOrder?: number | null;
+};
+export type Schedule = {
+  id: string;
+  name?: string | null;
+  cron?: string | null;
+  isActive: boolean;
+  onlyWhenOnline: boolean;
+  lastRunAt?: string | null;
+  nextRunAt?: string | null;
+  tasks: ScheduleTask[];
+};
+export type Database = {
+  id: string;
+  engine?: string | null;
+  name?: string | null;
+  username?: string | null;
+  host?: string | null;
+  port?: number | null;
+  remoteAccess?: boolean | null;
+  createdAt?: string | null;
+};
+
 export type FileEntry = {
   name: string;
   path: string;
@@ -150,6 +191,16 @@ export const ipc = {
     invoke<void>("backup_restore", { serverId, backupId }),
   backupDownload: (serverId: string, backupId: string, suggestedName: string) =>
     invoke<string | null>("backup_download", { serverId, backupId, suggestedName }),
+  startupGet: (serverId: string) => invoke<Startup>("startup_get", { serverId }),
+  variablesList: (serverId: string) => invoke<Variable[]>("variables_list", { serverId }),
+  variableSet: (serverId: string, envName: string, value: string) =>
+    invoke<void>("variable_set", { serverId, envName, value }),
+  schedulesList: (serverId: string) => invoke<Schedule[]>("schedules_list", { serverId }),
+  scheduleSetActive: (serverId: string, scheduleId: string, active: boolean) =>
+    invoke<void>("schedule_set_active", { serverId, scheduleId, active }),
+  scheduleRun: (serverId: string, scheduleId: string) =>
+    invoke<void>("schedule_run", { serverId, scheduleId }),
+  databasesList: (serverId: string) => invoke<Database[]>("databases_list", { serverId }),
 };
 
 export function isIpcError(e: unknown): e is IpcError {

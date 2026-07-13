@@ -6,8 +6,12 @@ import PowerControls from "./PowerControls";
 import Console from "./Console";
 import Files from "./Files";
 import Backups from "./Backups";
+import Startup from "./Startup";
+import Schedules from "./Schedules";
+import Databases from "./Databases";
 
-type Tab = "console" | "files" | "backups";
+type Tab = "console" | "files" | "backups" | "startup" | "schedules" | "databases";
+const TABS: Tab[] = ["console", "files", "backups", "startup", "schedules", "databases"];
 
 export default function ServerDetailPanel({ server }: { server: ServerSummary }) {
   const {
@@ -38,6 +42,8 @@ export default function ServerDetailPanel({ server }: { server: ServerSummary })
   const canBackupCreate = detailReady ? hasPerm("backup.create", "backup.*") : true;
   const canBackupRestore = detailReady ? hasPerm("backup.restore", "backup.*") : true;
   const canBackupDelete = detailReady ? hasPerm("backup.delete", "backup.*") : true;
+  const canSchedule = detailReady ? hasPerm("schedule.update", "schedule.*") : true;
+  const canEditSettings = detailReady ? hasPerm("settings.update", "settings.*") : true;
   const [tab, setTab] = useState<Tab>("console");
 
   const alloc = server.primaryAllocation;
@@ -154,12 +160,12 @@ export default function ServerDetailPanel({ server }: { server: ServerSummary })
 
       {statsError && <p className="mt-3 text-xs text-muted-foreground">{statsError}</p>}
 
-      <div className="mt-6 flex items-center gap-1 border-b border-white/[0.06]">
-        {(["console", "files", "backups"] as Tab[]).map((t) => (
+      <div className="mt-6 flex items-center gap-1 overflow-x-auto border-b border-white/[0.06]">
+        {TABS.map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`-mb-px border-b-2 px-3 py-1.5 text-sm capitalize transition ${
+            className={`-mb-px shrink-0 border-b-2 px-3 py-1.5 text-sm capitalize transition ${
               tab === t
                 ? "border-primary text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground"
@@ -180,8 +186,8 @@ export default function ServerDetailPanel({ server }: { server: ServerSummary })
         <div className={`flex min-h-0 flex-1 flex-col ${tab === "files" ? "" : "hidden"}`}>
           <Files key={server.id} serverId={server.id} canWrite={canFileWrite} />
         </div>
-        {/* Backups mounts lazily on first open — avoids a list fetch for every
-            selected server before the user asks for it. */}
+        {/* Backups + the 4c tabs mount lazily on first open — avoids a fetch
+            for every selected server before the user asks for it. */}
         {tab === "backups" && (
           <div className="flex min-h-0 flex-1 flex-col">
             <Backups
@@ -192,6 +198,21 @@ export default function ServerDetailPanel({ server }: { server: ServerSummary })
               canRestore={canBackupRestore}
               canDelete={canBackupDelete}
             />
+          </div>
+        )}
+        {tab === "startup" && (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <Startup key={server.id} serverId={server.id} canEdit={canEditSettings} />
+          </div>
+        )}
+        {tab === "schedules" && (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <Schedules key={server.id} serverId={server.id} canManage={canSchedule} />
+          </div>
+        )}
+        {tab === "databases" && (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <Databases key={server.id} serverId={server.id} />
           </div>
         )}
       </div>

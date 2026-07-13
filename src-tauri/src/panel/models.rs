@@ -2,7 +2,18 @@
 //! docs/api-surface.md — success envelope `{ success, data, meta? }`,
 //! flat error body, camelCase fields.
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+
+/// Deserialize a field tolerating an explicit JSON `null` as the type's
+/// default. `#[serde(default)]` alone only covers an ABSENT key, not `null`,
+/// which the panel can legitimately send for empty to-many relations / bools.
+pub fn null_default<'de, D, T>(d: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Default + Deserialize<'de>,
+{
+    Ok(Option::<T>::deserialize(d)?.unwrap_or_default())
+}
 
 /// Success envelope. `meta` present only on paginated responses.
 #[derive(Debug, Deserialize)]

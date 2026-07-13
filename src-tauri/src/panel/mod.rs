@@ -8,7 +8,10 @@
 pub mod auth;
 pub mod backups;
 pub mod client;
+pub mod databases;
 pub mod error;
 pub mod files;
 pub mod models;
+pub mod schedules;
 pub mod servers;
+pub mod startup;

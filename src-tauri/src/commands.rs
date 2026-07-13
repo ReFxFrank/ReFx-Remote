@@ -10,10 +10,13 @@ use tauri_plugin_dialog::DialogExt;
 use crate::console::{ConsoleLine, ConsoleManager};
 use crate::panel::auth::LoginOutcome;
 use crate::panel::backups::{self, Backup};
+use crate::panel::databases::{self, Database};
 use crate::panel::error::IpcError;
 use crate::panel::files::{self, FileEntry};
 use crate::panel::models::{PageMeta, Profile};
+use crate::panel::schedules::{self, Schedule};
 use crate::panel::servers::{self, LiveStats, PowerSignal, ServerDetail, ServerSummary};
+use crate::panel::startup::{self, Startup, Variable};
 use crate::state::AppState;
 
 #[derive(Serialize)]
@@ -382,6 +385,77 @@ pub async fn backup_restore(
     backup_id: String,
 ) -> Result<(), IpcError> {
     backups::restore(&state.auth, &server_id, &backup_id).await.map_err(Into::into)
+}
+
+// ── Startup / variables ────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn startup_get(
+    state: State<'_, AppState>,
+    server_id: String,
+) -> Result<Startup, IpcError> {
+    startup::get_startup(&state.auth, &server_id).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn variables_list(
+    state: State<'_, AppState>,
+    server_id: String,
+) -> Result<Vec<Variable>, IpcError> {
+    startup::get_variables(&state.auth, &server_id).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn variable_set(
+    state: State<'_, AppState>,
+    server_id: String,
+    env_name: String,
+    value: String,
+) -> Result<(), IpcError> {
+    startup::set_variable(&state.auth, &server_id, &env_name, &value)
+        .await
+        .map_err(Into::into)
+}
+
+// ── Schedules ──────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn schedules_list(
+    state: State<'_, AppState>,
+    server_id: String,
+) -> Result<Vec<Schedule>, IpcError> {
+    schedules::list(&state.auth, &server_id).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn schedule_set_active(
+    state: State<'_, AppState>,
+    server_id: String,
+    schedule_id: String,
+    active: bool,
+) -> Result<(), IpcError> {
+    schedules::set_active(&state.auth, &server_id, &schedule_id, active)
+        .await
+        .map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn schedule_run(
+    state: State<'_, AppState>,
+    server_id: String,
+    schedule_id: String,
+) -> Result<(), IpcError> {
+    schedules::run_now(&state.auth, &server_id, &schedule_id).await.map_err(Into::into)
+}
+
+// ── Databases ──────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn databases_list(
+    state: State<'_, AppState>,
+    server_id: String,
+) -> Result<Vec<Database>, IpcError> {
+    databases::list(&state.auth, &server_id).await.map_err(Into::into)
 }
 
 #[tauri::command]

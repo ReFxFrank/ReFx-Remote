@@ -609,6 +609,53 @@ async fn backup_create_pending_and_cap_conflict() {
 }
 
 #[tokio::test]
+async fn variables_decode_enum_and_string_shapes() {
+    let server = MockServer::start().await;
+    // Verbatim shape from the live Minecraft egg (2026-07-13).
+    Mock::given(method("GET"))
+        .and(path("/api/v1/servers/srv_1/variables"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "success": true,
+            "data": [
+                {"envName": "LOADER", "displayName": "Loader", "description": "Server software.",
+                 "type": "ENUM", "rules": {"options": ["vanilla","paper","fabric"], "required": true},
+                 "userEditable": true, "userViewable": true, "value": "paper"},
+                {"envName": "MINECRAFT_VERSION", "displayName": "Minecraft Version",
+                 "type": "STRING", "rules": {"regex": "^(latest|\\d+)$", "required": true},
+                 "userEditable": false, "userViewable": true, "value": "latest"}
+            ]
+        })))
+        .mount(&server)
+        .await;
+
+    let auth = signed_in(&server).await;
+    let vars = refx_desktop_lib::panel::startup::get_variables(&auth, "srv_1").await.unwrap();
+    assert_eq!(vars.len(), 2);
+    assert_eq!(vars[0].kind.as_deref(), Some("ENUM"));
+    assert_eq!(vars[0].rules.as_ref().unwrap().options.as_ref().unwrap().len(), 3);
+    assert!(vars[0].user_editable);
+    assert_eq!(vars[1].rules.as_ref().unwrap().regex.as_deref(), Some("^(latest|\\d+)$"));
+    assert!(!vars[1].user_editable);
+}
+
+#[tokio::test]
+async fn variable_set_tolerates_any_response_body() {
+    let server = MockServer::start().await;
+    // PUT variables may return a body or be bodyless — no_content ignores it.
+    Mock::given(method("PUT"))
+        .and(path("/api/v1/servers/srv_1/variables/LOADER"))
+        .and(body_partial_json(json!({"value": "fabric"})))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&server)
+        .await;
+
+    let auth = signed_in(&server).await;
+    refx_desktop_lib::panel::startup::set_variable(&auth, "srv_1", "LOADER", "fabric")
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
 async fn rate_limit_maps_with_retry_after() {
     let server = MockServer::start().await;
     Mock::given(method("GET"))
