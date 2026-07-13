@@ -1,0 +1,35 @@
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+*.mobileprovision
+*.keystore
+*.jks
+# Tauri updater signing material
+*.sig.key
+tauri-signing*
+# Real API keys / tokens (defense in depth — none should ever exist as files)
+*apikey*
+*api-key*.txt
+
+# Node
+node_modules/
+dist/
+
+# Rust
+target/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
+
+# Logs
+*.log
+logs/
