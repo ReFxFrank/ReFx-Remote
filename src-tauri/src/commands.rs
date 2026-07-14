@@ -25,14 +25,16 @@ use crate::state::AppState;
 #[derive(Serialize)]
 pub struct AppInfo {
     pub name: &'static str,
-    pub version: &'static str,
+    pub version: String,
 }
 
 #[tauri::command]
-pub fn app_info() -> AppInfo {
+pub fn app_info(app: AppHandle) -> AppInfo {
+    // Authoritative app version (from tauri.conf.json), so what the UI shows can
+    // never drift from the released version even if Cargo.toml lags behind.
     AppInfo {
         name: "ReFx Desktop",
-        version: env!("CARGO_PKG_VERSION"),
+        version: app.package_info().version.to_string(),
     }
 }
 
@@ -687,7 +689,7 @@ pub fn copy_diagnostics(app: AppHandle) -> Result<String, IpcError> {
     // and OS context (individual log lines already carry timestamps).
     let header = format!(
         "=== ReFx Desktop diagnostics ===\nApp:  ReFx Desktop v{}\nOS:   {} {}\nLog tail (last 64 KB, secrets redacted):\n\n",
-        env!("CARGO_PKG_VERSION"),
+        app.package_info().version,
         std::env::consts::OS,
         std::env::consts::ARCH,
     );

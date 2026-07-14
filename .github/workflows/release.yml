@@ -1,10 +1,10 @@
 name: Release
 
-# Tag a version to cut a release:
-#   git tag v0.1.1 && git push origin v0.1.1
+# Cut a release with one command:  npm run release [patch|minor|major]
+# (bumps the version everywhere, tags, and pushes — which triggers this).
 # Builds the signed NSIS installer + portable exe, generates the updater
-# artifacts (`*.sig` + `latest.json`), and publishes a DRAFT GitHub release.
-# Review the draft, then publish it to roll the update out to installed clients.
+# artifacts (`*.sig` + `latest.json`), and PUBLISHES the GitHub release, so
+# installed apps auto-update (on launch / every 6h / tray "Check for updates").
 
 on:
   push:
@@ -39,7 +39,15 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Build, sign, and draft release
+      # Gate the publish on green checks — with auto-publish there's no draft to
+      # catch a broken build, so a red check must abort the release.
+      - name: Verify before publishing
+        run: |
+          npx tsc --noEmit -p tsconfig.json
+          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+          cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Build, sign, and publish release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -57,7 +65,7 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: "ReFx Desktop ${{ github.ref_name }}"
           releaseBody: "See the assets below to download and install this version."
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           # Emits latest.json (updater manifest) alongside the installers.
           includeUpdaterJson: true

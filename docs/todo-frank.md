@@ -39,10 +39,10 @@ Everything below is wired and builds locally; these are the human-only / account
 - **Full step-by-step runbook: [code-signing.md](code-signing.md).** It covers the Azure Trusted Signing account + certificate profile (multi-day identity validation), the service principal + role, the three `AZURE_*` repo secrets (already referenced in `release.yml`), and the exact one-file config change — plus the critical gotcha that signing must run **inside** the Tauri bundle (`bundle.windows.signCommand`), never as a later CI step, or the updater's minisign signature stops matching and auto-updates break. Left out of the committed config for now so unsigned local/CI builds still succeed.
 
 ### C. Cutting a release
-1. Bump `version` in `src-tauri/tauri.conf.json` (and `package.json` if you keep them in sync).
-2. `git tag vX.Y.Z && git push origin vX.Y.Z` → the **Release** workflow builds, signs, and opens a **draft** GitHub release with the installers + `latest.json`.
-3. Review the draft, then **publish** it. Installed clients check `releases/latest/download/latest.json` on launch and every 6h, and via tray → "Check for updates".
-4. First-ever release has nothing to update *from* — install it manually to seed, then tag the next version to exercise the update path.
+1. On a clean `main`, run **`npm run release`** (patch) — or `npm run release minor` / `major` / `X.Y.Z`. It bumps the version in `tauri.conf.json`, `package.json`, and `Cargo.toml` together, commits `Release vX.Y.Z`, tags it, and pushes the branch + tag (`scripts/release.mjs`).
+2. The pushed tag triggers the **Release** workflow, which first runs the checks (tsc / clippy / tests — a red build aborts, since there's no draft to catch it), then builds + signs the installers + `latest.json` and **publishes** the GitHub release.
+3. Installed clients auto-update: they check `releases/latest/download/latest.json` on launch, every 6h, and via tray → "Check for updates".
+4. First-ever release has nothing to update *from* — install it manually to seed, then run `npm run release` again to exercise the update path.
 
 ### D. Still needs your input (unchanged from above)
 - Item 5 (final product name + 1024px icon — currently using the REFX wordmark), item 9 (EULA/privacy URLs), item 10 (support link for "Copy diagnostics" — currently copies the redacted log to clipboard), and **item 3 (a test server with a running game)** so the console/power/files paths can be live-verified.
