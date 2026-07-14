@@ -27,6 +27,7 @@ type AuthStore = {
   init: () => Promise<void>;
   login: (email: string, password: string, remember: boolean) => Promise<void>;
   verifyMfa: (code: string, method?: "totp" | "recovery") => Promise<void>;
+  verifyPasskey: () => Promise<void>;
   changePassword: (current: string, next: string) => Promise<void>;
   backToSignIn: () => void;
   sessionExpired: () => void;
@@ -97,6 +98,32 @@ export const useAuth = create<AuthStore>((set, get) => ({
       // been on the MFA screen a while, send the user back to re-enter their
       // password (fresh challenge) with an accurate message — rather than let
       // them burn codes into the verify rate limit against a dead token.
+      if (mfaStartedAt && Date.now() - mfaStartedAt > 4.5 * 60 * 1000) {
+        mfaStartedAt = 0;
+        set({
+          status: "signedOut",
+          mfaMethods: [],
+          busy: false,
+          error: "Your sign-in timed out — please enter your password again.",
+        });
+      } else {
+        set({ busy: false, error: errorMessage(e) });
+      }
+    }
+  },
+
+  // Passkey (Windows Hello / security key) as the MFA factor. The native
+  // ceremony runs in the Rust core; this just tracks busy/error around it and
+  // reuses verifyMfa's stale-challenge routing. A user-cancelled prompt comes
+  // back as a plain error and simply re-enables the button.
+  verifyPasskey: async () => {
+    set({ busy: true, error: null });
+    try {
+      await ipc.authMfaWebauthn();
+      mfaStartedAt = 0;
+      await get().init();
+      set({ busy: false });
+    } catch (e) {
       if (mfaStartedAt && Date.now() - mfaStartedAt > 4.5 * 60 * 1000) {
         mfaStartedAt = 0;
         set({

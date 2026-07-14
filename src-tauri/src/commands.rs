@@ -166,6 +166,13 @@ pub async fn auth_mfa_verify(
         .map_err(Into::into)
 }
 
+/// Passkey (Windows Hello) second factor. Runs the native WebAuthn ceremony in
+/// the Rust core; the WebView only sees success/failure.
+#[tauri::command]
+pub async fn auth_mfa_webauthn(state: State<'_, AppState>) -> Result<(), IpcError> {
+    state.auth.mfa_webauthn().await.map_err(Into::into)
+}
+
 #[tauri::command]
 pub async fn auth_logout(state: State<'_, AppState>) -> Result<(), IpcError> {
     state.auth.logout().await.map_err(Into::into)

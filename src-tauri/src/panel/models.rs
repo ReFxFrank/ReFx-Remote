@@ -131,6 +131,23 @@ pub struct RefreshBody<'a> {
     pub refresh_token: &'a str,
 }
 
+/// `POST /auth/mfa/webauthn/login/options` — begin a passkey assertion, keyed
+/// to the short-lived mfaToken from `/auth/login`.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebauthnLoginOptionsBody<'a> {
+    pub mfa_token: &'a str,
+}
+
+/// `POST /auth/mfa/webauthn/login/verify` — complete the assertion. `response`
+/// is the native `AuthenticationResponseJSON` (opaque here; forwarded as-is).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebauthnLoginVerifyBody<'a> {
+    pub mfa_token: &'a str,
+    pub response: &'a serde_json::Value,
+}
+
 /// `GET /auth/me` — subset the app needs; unknown fields ignored.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]

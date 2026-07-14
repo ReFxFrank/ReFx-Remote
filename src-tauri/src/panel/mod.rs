@@ -19,3 +19,4 @@ pub mod perms;
 pub mod schedules;
 pub mod servers;
 pub mod startup;
+pub mod webauthn_win;

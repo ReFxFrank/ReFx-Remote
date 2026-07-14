@@ -110,6 +110,7 @@ pub fn run() {
             commands::auth_status,
             commands::auth_login,
             commands::auth_mfa_verify,
+            commands::auth_mfa_webauthn,
             commands::auth_logout,
             commands::account_password,
             commands::mfa_totp_enroll,

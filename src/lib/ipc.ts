@@ -645,6 +645,7 @@ export const ipc = {
   mfaTotpDisable: () => invoke<void>("mfa_totp_disable"),
   authMfaVerify: (code: string, method?: string) =>
     invoke<void>("auth_mfa_verify", { code, method }),
+  authMfaWebauthn: () => invoke<void>("auth_mfa_webauthn"),
   authLogout: () => invoke<void>("auth_logout"),
   serversList: (q?: string) => invoke<ServerListResult>("servers_list", { q }),
   serverGet: (serverId: string) => invoke<ServerDetail>("server_get", { serverId }),

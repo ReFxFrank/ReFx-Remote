@@ -3498,6 +3498,7 @@ dependencies = [
 name = "refx-desktop"
 version = "0.1.5"
 dependencies = [
+ "base64 0.22.1",
  "futures-util",
  "keyring",
  "regex",
@@ -3522,6 +3523,7 @@ dependencies = [
  "tracing-log",
  "tracing-subscriber",
  "urlencoding",
+ "windows",
  "wiremock",
 ]
 

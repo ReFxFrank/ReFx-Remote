@@ -19,7 +19,11 @@ use tracing::{info, warn};
 
 use super::client::PanelClient;
 use super::error::PanelError;
-use super::models::{LoginBody, MfaVerifyBody, Profile, RefreshBody, TokenResponse};
+use super::models::{
+    LoginBody, MfaVerifyBody, Profile, RefreshBody, TokenResponse, WebauthnLoginOptionsBody,
+    WebauthnLoginVerifyBody,
+};
+use super::webauthn_win::{self, WebauthnError};
 use crate::vault::Vault;
 
 #[derive(Clone)]
@@ -167,6 +171,92 @@ impl AuthManager {
         *self.pending_mfa.lock().await = None;
         self.install(tokens).await?;
         info!("signed in (mfa)");
+        Ok(())
+    }
+
+    /// Passkey (WebAuthn) as the second factor at sign-in. Mirrors
+    /// [`Self::mfa_verify`], but instead of a typed code it runs a native
+    /// Windows Hello ceremony against the challenge tied to the pending
+    /// mfaToken. The private key never leaves the authenticator; only the
+    /// signed assertion crosses the wire.
+    pub async fn mfa_webauthn(&self) -> Result<(), PanelError> {
+        let mfa_token = self
+            .pending_mfa
+            .lock()
+            .await
+            .clone()
+            .ok_or(PanelError::Other(
+                "No sign-in in progress — start over from the sign-in screen.".into(),
+            ))?;
+
+        // 1. Assertion options (challenge + allowCredentials) for this pending
+        //    challenge. A 401 here means the 5-minute mfaToken aged out.
+        let options: serde_json::Value = match self
+            .client
+            .json(
+                Method::POST,
+                "/auth/mfa/webauthn/login/options",
+                None,
+                Some(&WebauthnLoginOptionsBody {
+                    mfa_token: &mfa_token,
+                }),
+            )
+            .await
+        {
+            Ok(v) => v,
+            Err(PanelError::Unauthorized { .. }) => {
+                return Err(PanelError::Other(
+                    "Your sign-in took too long — please start again.".into(),
+                ));
+            }
+            Err(e) => return Err(e),
+        };
+
+        // 2. Native ceremony. It shows a modal OS dialog and blocks, so run it
+        //    off the async runtime.
+        let options_str = options.to_string();
+        let response = tokio::task::spawn_blocking(move || webauthn_win::get_assertion(&options_str))
+            .await
+            .map_err(|e| PanelError::Other(format!("passkey task failed: {e}")))?
+            .map_err(map_webauthn_err)?;
+
+        // 3. Verify the assertion → session tokens.
+        let tokens: TokenResponse = match self
+            .client
+            .json(
+                Method::POST,
+                "/auth/mfa/webauthn/login/verify",
+                None,
+                Some(&WebauthnLoginVerifyBody {
+                    mfa_token: &mfa_token,
+                    response: &response,
+                }),
+            )
+            .await
+        {
+            Ok(t) => t,
+            Err(PanelError::Unauthorized { .. }) => {
+                return Err(PanelError::Other(
+                    "Passkey sign-in didn't verify — please try again.".into(),
+                ));
+            }
+            // A 400 from the verify endpoint is the backend's
+            // "Passkey authentication failed: …" — surface it as a clean retry.
+            Err(PanelError::Validation { .. }) => {
+                return Err(PanelError::Other(
+                    "Passkey sign-in didn't verify — please try again.".into(),
+                ));
+            }
+            Err(e) => return Err(e),
+        };
+        if tokens.needs_mfa() || tokens.access_token.is_empty() {
+            return Err(PanelError::Decode(
+                "webauthn verify returned no tokens".into(),
+            ));
+        }
+        *self.pending_mfa.lock().await = None;
+        self.install(tokens).await?;
+        info!("signed in (passkey)");
         Ok(())
     }
 
@@ -464,6 +554,22 @@ impl AuthManager {
                 Err(PanelError::SessionExpired)
             }
             Err(e) => Err(e),
+        }
+    }
+}
+
+/// Map a native passkey-ceremony failure to a user-facing `PanelError`.
+/// Cancellation is deliberately soft (the user chose to back out); a malformed
+/// options payload is a protocol bug worth flagging as such.
+fn map_webauthn_err(e: WebauthnError) -> PanelError {
+    match e {
+        WebauthnError::Cancelled => {
+            PanelError::Other("Passkey prompt was cancelled.".into())
+        }
+        WebauthnError::BadOptions(m) => PanelError::Decode(m),
+        WebauthnError::Ceremony(m) => {
+            warn!("passkey ceremony failed: {m}");
+            PanelError::Other("Windows Hello couldn't complete the passkey. Try again.".into())
         }
     }
 }

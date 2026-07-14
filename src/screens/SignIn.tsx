@@ -3,7 +3,8 @@ import { useAuth } from "../store/auth";
 import { LogoWordmark } from "../components/Logo";
 
 export default function SignIn() {
-  const { status, login, verifyMfa, backToSignIn, busy, error, mfaMethods } = useAuth();
+  const { status, login, verifyMfa, verifyPasskey, backToSignIn, busy, error, mfaMethods } =
+    useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
@@ -13,7 +14,9 @@ export default function SignIn() {
   const mfa = status === "mfa";
   const hasTotp = mfaMethods.includes("totp");
   const hasRecovery = mfaMethods.includes("recovery");
-  const passkeyOnly = mfa && !hasTotp && !hasRecovery;
+  const hasPasskey = mfaMethods.includes("webauthn");
+  // No code-based factor at all → the passkey button is the only way through.
+  const passkeyOnly = mfa && hasPasskey && !hasTotp && !hasRecovery;
   const recoveryMode = useRecovery || (hasRecovery && !hasTotp);
 
   function onSubmit(e: FormEvent) {
@@ -55,10 +58,14 @@ export default function SignIn() {
 
         {mfa ? (
           passkeyOnly ? (
-            <p className="mt-6 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
-              ReFx Desktop can't use passkeys yet. Sign in on refx.gg and add an authenticator app
-              (or keep recovery codes handy), then try again.
-            </p>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void verifyPasskey()}
+              className="btn-primary refx-sheen relative mt-6 w-full rounded-md px-3 py-2.5 text-sm font-semibold disabled:opacity-50"
+            >
+              {busy ? "Waiting for Windows Hello…" : "Use passkey (Windows Hello)"}
+            </button>
           ) : (
             <>
               <label className="refx-eyebrow mt-6 block" htmlFor="code">
@@ -84,6 +91,16 @@ export default function SignIn() {
                   className="mt-2 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
                 >
                   {useRecovery ? "Use your authenticator code" : "Use a recovery code instead"}
+                </button>
+              )}
+              {hasPasskey && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void verifyPasskey()}
+                  className="btn-ghost mt-4 w-full rounded-md px-3 py-2 text-sm disabled:opacity-50"
+                >
+                  {busy ? "Waiting for Windows Hello…" : "Use passkey (Windows Hello) instead"}
                 </button>
               )}
             </>
