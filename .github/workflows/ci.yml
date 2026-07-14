@@ -44,10 +44,10 @@ jobs:
       - name: Throwaway updater signing key (CI validation only)
         shell: bash
         run: |
-          npm run tauri -- signer generate --ci -p ci -w "$RUNNER_TEMP/ci.key" -f
+          npm run tauri -- signer generate --ci -p ci -w ci-throwaway.key -f
           {
             echo "TAURI_SIGNING_PRIVATE_KEY<<__EOF__"
-            cat "$RUNNER_TEMP/ci.key"
+            cat ci-throwaway.key
             echo "__EOF__"
           } >> "$GITHUB_ENV"
           echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD=ci" >> "$GITHUB_ENV"
