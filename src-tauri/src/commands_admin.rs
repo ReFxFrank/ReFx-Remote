@@ -9,10 +9,14 @@
 use serde::Serialize;
 use tauri::State;
 
-use crate::panel::admin::{nodes, platform, roles, servers as admin_servers, support, users};
+use crate::panel::admin::{billing, nodes, platform, roles, servers as admin_servers, support, users};
 use crate::panel::error::IpcError;
 use crate::panel::models::PageMeta;
 use crate::state::AppState;
+
+fn validation(msg: impl Into<String>) -> IpcError {
+    IpcError { code: "VALIDATION", message: msg.into(), mfa_methods: None }
+}
 
 // ── Roles / RBAC (roles.manage) ────────────────────────────────────────
 
@@ -633,4 +637,129 @@ pub async fn admin_location_update(
 #[tauri::command]
 pub async fn admin_location_delete(state: State<'_, AppState>, id: String) -> Result<(), IpcError> {
     nodes::location_delete(&state.auth, &id).await.map_err(Into::into)
+}
+
+// ── Billing & commerce (billing.read/manage/refund, payments.manage) ───
+
+#[tauri::command]
+pub async fn admin_billing_summary(
+    state: State<'_, AppState>,
+) -> Result<billing::BillingSummary, IpcError> {
+    billing::summary(&state.auth).await.map_err(Into::into)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InvoiceList {
+    pub invoices: Vec<billing::Invoice>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub meta: Option<PageMeta>,
+}
+
+#[tauri::command]
+pub async fn admin_invoices_list(
+    state: State<'_, AppState>,
+    page: Option<u32>,
+    page_size: Option<u32>,
+    q: Option<String>,
+) -> Result<InvoiceList, IpcError> {
+    let page = billing::invoices(&state.auth, page.unwrap_or(1), page_size.unwrap_or(50), q.as_deref())
+        .await?;
+    Ok(InvoiceList { invoices: page.data, meta: page.meta })
+}
+
+#[tauri::command]
+pub async fn admin_invoice_void(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<billing::Invoice, IpcError> {
+    billing::invoice_void(&state.auth, &id).await.map_err(Into::into)
+}
+
+/// Settle an invoice off-platform — MONEY. Requires an explicit typed confirm
+/// from the UI (invoice number), passed as `confirm`.
+#[tauri::command]
+pub async fn admin_invoice_mark_paid(
+    state: State<'_, AppState>,
+    id: String,
+    confirm: bool,
+) -> Result<billing::Invoice, IpcError> {
+    if !confirm {
+        return Err(validation("Mark-paid not confirmed."));
+    }
+    billing::invoice_mark_paid(&state.auth, &id).await.map_err(Into::into)
+}
+
+/// Issue a real gateway refund — MONEY. `amount_minor` is the exact amount to
+/// refund; `confirm_amount` is the major-unit string the user typed and must
+/// bind to it, so a UI bug can't refund an unintended amount.
+#[tauri::command]
+pub async fn admin_invoice_refund(
+    state: State<'_, AppState>,
+    id: String,
+    amount_minor: i64,
+    confirm_amount: String,
+) -> Result<billing::RefundResult, IpcError> {
+    if amount_minor <= 0 {
+        return Err(validation("Refund amount must be positive."));
+    }
+    let typed: f64 = confirm_amount
+        .trim()
+        .parse()
+        .map_err(|_| validation("Type the amount to confirm."))?;
+    if (typed * 100.0).round() as i64 != amount_minor {
+        return Err(validation("The typed amount doesn't match — nothing was refunded."));
+    }
+    billing::invoice_refund(&state.auth, &id, amount_minor).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_invoice_delete(state: State<'_, AppState>, id: String) -> Result<(), IpcError> {
+    billing::invoice_delete(&state.auth, &id).await.map_err(Into::into)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OrderList {
+    pub orders: Vec<billing::Order>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub meta: Option<PageMeta>,
+}
+
+#[tauri::command]
+pub async fn admin_orders_list(
+    state: State<'_, AppState>,
+    page: Option<u32>,
+    page_size: Option<u32>,
+) -> Result<OrderList, IpcError> {
+    let page = billing::orders(&state.auth, page.unwrap_or(1), page_size.unwrap_or(50)).await?;
+    Ok(OrderList { orders: page.data, meta: page.meta })
+}
+
+#[tauri::command]
+pub async fn admin_order_delete(state: State<'_, AppState>, id: String) -> Result<(), IpcError> {
+    billing::order_delete(&state.auth, &id).await.map_err(Into::into)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PaymentList {
+    pub payments: Vec<billing::Payment>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub meta: Option<PageMeta>,
+}
+
+#[tauri::command]
+pub async fn admin_payments_list(
+    state: State<'_, AppState>,
+    page: Option<u32>,
+    page_size: Option<u32>,
+) -> Result<PaymentList, IpcError> {
+    let page = billing::payments(&state.auth, page.unwrap_or(1), page_size.unwrap_or(50)).await?;
+    Ok(PaymentList { payments: page.data, meta: page.meta })
+}
+
+#[tauri::command]
+pub async fn admin_payment_gateways(state: State<'_, AppState>) -> Result<serde_json::Value, IpcError> {
+    billing::gateways(&state.auth).await.map_err(Into::into)
 }

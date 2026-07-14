@@ -10,6 +10,7 @@ import AdminDashboard from "./AdminDashboard";
 import AdminAudit from "./AdminAudit";
 import AdminSupport from "./AdminSupport";
 import AdminNodes from "./AdminNodes";
+import AdminBilling from "./AdminBilling";
 
 type NavItem = { screen: AdminScreen; label: string; perm: AdminPermission; ready?: boolean };
 type NavGroup = { group: string; items: NavItem[] };
@@ -42,9 +43,8 @@ const NAV: NavGroup[] = [
   {
     group: "Commerce",
     items: [
-      { screen: "invoices", label: "Invoices", perm: "billing.read" },
-      { screen: "subscriptions", label: "Subscriptions", perm: "billing.read" },
-      { screen: "payments", label: "Payments", perm: "payments.manage" },
+      { screen: "invoices", label: "Billing", perm: "billing.read", ready: true },
+      { screen: "payments", label: "Payments", perm: "payments.manage", ready: true },
       { screen: "growth", label: "Growth", perm: "billing.read" },
       { screen: "coupons", label: "Coupons", perm: "catalog.manage" },
       { screen: "gift-cards", label: "Gift cards", perm: "catalog.manage" },
@@ -150,6 +150,7 @@ function AdminScreenView({ screen, ready }: { screen: AdminScreen; ready?: boole
   if (screen === "audit") return <AdminAudit />;
   if (screen === "support") return <AdminSupport />;
   if (screen === "nodes") return <AdminNodes />;
+  if (screen === "invoices" || screen === "payments") return <AdminBilling />;
   return (
     <div className="flex h-full items-center justify-center p-8 text-center">
       <div className="max-w-sm">

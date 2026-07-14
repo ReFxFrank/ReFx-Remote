@@ -188,6 +188,16 @@ pub fn run() {
             commands_admin::admin_location_create,
             commands_admin::admin_location_update,
             commands_admin::admin_location_delete,
+            commands_admin::admin_billing_summary,
+            commands_admin::admin_invoices_list,
+            commands_admin::admin_invoice_void,
+            commands_admin::admin_invoice_mark_paid,
+            commands_admin::admin_invoice_refund,
+            commands_admin::admin_invoice_delete,
+            commands_admin::admin_orders_list,
+            commands_admin::admin_order_delete,
+            commands_admin::admin_payments_list,
+            commands_admin::admin_payment_gateways,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

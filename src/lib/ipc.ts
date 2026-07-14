@@ -358,6 +358,47 @@ export type AdminNode = {
 export type NodeList = { nodes: AdminNode[]; meta?: PageMeta };
 export type NodePing = { ms?: number | null; reachable: boolean; heartbeatAgeMs?: number | null };
 export type NodeBootstrapToken = { bootstrapToken: string; expiresAt?: string | null };
+export type BillingSummary = {
+  currency?: string | null;
+  revenueMinor: number;
+  outstandingMinor: number;
+  activeSubscriptions: number;
+  openInvoices: number;
+  paidInvoices: number;
+};
+export type Invoice = {
+  id: string;
+  number?: string | null;
+  state?: string | null;
+  currency?: string | null;
+  totalMinor?: number | null;
+  amountPaidMinor?: number | null;
+  createdAt?: string | null;
+  user?: { id?: string | null; email?: string | null } | null;
+};
+export type InvoiceList = { invoices: Invoice[]; meta?: PageMeta };
+export type Order = {
+  id: string;
+  state?: string | null;
+  interval?: string | null;
+  gateway?: string | null;
+  currentPeriodEnd?: string | null;
+  user?: { id?: string | null; email?: string | null } | null;
+  product?: unknown;
+};
+export type OrderList = { orders: Order[]; meta?: PageMeta };
+export type Payment = {
+  id: string;
+  gateway?: string | null;
+  amountMinor?: number | null;
+  currency?: string | null;
+  state?: string | null;
+  failureReason?: string | null;
+  createdAt?: string | null;
+  invoice?: unknown;
+};
+export type PaymentList = { payments: Payment[]; meta?: PageMeta };
+export type RefundResult = { refunded: boolean; amountMinor?: number | null; full?: boolean | null };
 
 export const ipc = {
   appInfo: () => invoke<AppInfo>("app_info"),
@@ -549,6 +590,24 @@ export const ipc = {
     locationUpdate: (id: string, patch: { code?: string; name?: string; country?: string }) =>
       invoke<NodeRegion>("admin_location_update", { id, ...patch }),
     locationDelete: (id: string) => invoke<void>("admin_location_delete", { id }),
+
+    billingSummary: () => invoke<BillingSummary>("admin_billing_summary"),
+    invoicesList: (opts?: { page?: number; pageSize?: number; q?: string }) =>
+      invoke<InvoiceList>("admin_invoices_list", { ...opts }),
+    invoiceVoid: (id: string) => invoke<Invoice>("admin_invoice_void", { id }),
+    invoiceMarkPaid: (id: string, confirm: boolean) =>
+      invoke<Invoice>("admin_invoice_mark_paid", { id, confirm }),
+    /** amountMinor is the exact amount to refund; confirmAmount is the major-unit
+     *  string the user typed, re-verified Rust-side to match amountMinor. */
+    invoiceRefund: (id: string, amountMinor: number, confirmAmount: string) =>
+      invoke<RefundResult>("admin_invoice_refund", { id, amountMinor, confirmAmount }),
+    invoiceDelete: (id: string) => invoke<void>("admin_invoice_delete", { id }),
+    ordersList: (opts?: { page?: number; pageSize?: number }) =>
+      invoke<OrderList>("admin_orders_list", { ...opts }),
+    orderDelete: (id: string) => invoke<void>("admin_order_delete", { id }),
+    paymentsList: (opts?: { page?: number; pageSize?: number }) =>
+      invoke<PaymentList>("admin_payments_list", { ...opts }),
+    paymentGateways: () => invoke<unknown>("admin_payment_gateways"),
   },
 };
 
