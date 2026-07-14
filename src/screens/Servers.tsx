@@ -77,17 +77,24 @@ export default function Servers() {
   // Ctrl+` focus the console command line.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Always swallow the WebView page-reload accelerators (F5, Ctrl/Cmd+R,
+      // Ctrl+Shift+R). A reload wipes all in-memory state — open file editor,
+      // console scrollback — with no recovery, so we never want it, even when
+      // the keystroke lands in a text field.
+      const isReloadKey =
+        e.key === "F5" || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "r");
+      if (isReloadKey) e.preventDefault();
+
       if (!(e.ctrlKey || e.metaKey)) return;
       if (e.key === "k") {
         e.preventDefault();
         setPaletteOpen((v) => !v);
-      } else if (e.key === "r") {
-        // Restart the selected server — but never hijack a keystroke typed into
-        // an input (search/console/etc.), and only when something is selected.
-        // ServerDetailPanel applies the permission/state/busy gate and shows a
-        // confirmation before anything actually restarts.
+      } else if (e.key.toLowerCase() === "r") {
+        // Turn Ctrl+R into a restart request only when we're not typing in a
+        // field and a server is selected. ServerDetailPanel applies the
+        // permission/state/busy gate and confirms before anything restarts.
+        // (preventDefault already ran above, so the SPA never reloads.)
         if (isEditableTarget(e.target) || !useServers.getState().selectedId) return;
-        e.preventDefault();
         window.dispatchEvent(new CustomEvent("refx:request-restart"));
       } else if (e.key === "`") {
         e.preventDefault();

@@ -48,16 +48,16 @@ export default function ServerDetailPanel({ server }: { server: ServerSummary })
   const [confirmRestart, setConfirmRestart] = useState(false);
 
   // Honour a deep-link/tray request to jump to a specific tab (e.g. console).
-  // Driven off the requestedTab VALUE (not just server.id) so a request for the
-  // already-selected server is honoured, and a stale request can't later hijack
-  // a different server's tab.
-  const requestedTab = useServers((s) => s.requestedTab);
+  // Driven off the request VALUE (not just server.id) so a request for the
+  // already-selected server is honoured, and scoped to THIS server so a request
+  // for a still-loading target can't hijack whatever panel is currently mounted.
+  const requestedOpen = useServers((s) => s.requestedOpen);
   const consumeRequestedTab = useServers((s) => s.consumeRequestedTab);
   useEffect(() => {
-    if (!requestedTab) return;
-    const t = consumeRequestedTab();
+    if (!requestedOpen || requestedOpen.id !== server.id) return;
+    const t = consumeRequestedTab(server.id);
     if (t && (TABS as string[]).includes(t)) setTab(t as Tab);
-  }, [requestedTab, server.id, consumeRequestedTab]);
+  }, [requestedOpen, server.id, consumeRequestedTab]);
 
   const alloc = server.primaryAllocation;
   const address = alloc?.ip ? `${alloc.ip}:${alloc.port}` : null;
@@ -264,7 +264,9 @@ export default function ServerDetailPanel({ server }: { server: ServerSummary })
               <button
                 onClick={() => {
                   setConfirmRestart(false);
-                  doPower("restart");
+                  // Re-check the gate at click time: the server may have left a
+                  // restartable state (crash/stop) while the dialog was open.
+                  if (canPower !== false && isRestartable && !p) doPower("restart");
                 }}
                 className="btn-primary rounded-md px-3 py-1.5 text-sm"
               >

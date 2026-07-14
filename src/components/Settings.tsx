@@ -48,9 +48,18 @@ export default function Settings({ onClose }: { onClose: () => void }) {
 
   function update(patch: Partial<AppSettings>) {
     if (!s) return;
+    const prev = s;
     const next = { ...s, ...patch };
     setS(next);
-    ipc.settingsSet(next).catch((e) => setError(errorMessage(e)));
+    setError(null);
+    ipc.settingsSet(next).catch((e) => {
+      // The backend rejected without persisting (e.g. a denied autostart write).
+      // Revert the optimistic toggle so the UI matches the persisted state —
+      // otherwise it stays visually applied and re-sends the stuck value on
+      // every later edit, blocking all further changes.
+      setS(prev);
+      setError(errorMessage(e));
+    });
   }
 
   async function copyDiagnostics() {

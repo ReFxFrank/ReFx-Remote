@@ -24,16 +24,29 @@ export default function UpdateBanner() {
   // Guard against overlapping checks (launch + interval + manual) and against
   // starting a second download.
   const busyRef = useRef(false);
+  // A manual check that lands while a check is in flight isn't dropped: we flag
+  // it and re-run once the current one finishes, so the user always gets a result.
+  const pendingManualRef = useRef(false);
 
   const runCheck = useCallback(async (manual: boolean) => {
-    if (busyRef.current) return;
+    if (busyRef.current) {
+      if (manual) {
+        pendingManualRef.current = true;
+        setPhase({ k: "checking" }); // acknowledge the click immediately
+      }
+      return;
+    }
     busyRef.current = true;
     if (manual) setPhase({ k: "checking" });
     try {
       const update = await checkForUpdate();
+      // Surface a result if the caller asked, OR a manual check arrived while
+      // this one was in flight (it can only interleave during the await above,
+      // so pendingManualRef is settled by the time we read it here).
+      const surface = manual || pendingManualRef.current;
       if (update) {
         setPhase({ k: "available", update });
-      } else if (manual) {
+      } else if (surface) {
         setPhase({ k: "uptodate" });
         window.setTimeout(
           () => setPhase((p) => (p.k === "uptodate" ? { k: "idle" } : p)),
@@ -41,11 +54,14 @@ export default function UpdateBanner() {
         );
       }
     } catch (e) {
-      // Only nag the user if they explicitly asked; auto-checks fail silently
-      // (offline, dev build with no endpoint, GitHub hiccup).
-      if (manual) setPhase({ k: "error", message: errorMessage(e) });
+      // Only nag the user if they explicitly asked (or a manual check overlapped);
+      // auto-checks fail silently (offline, dev build with no endpoint, GitHub hiccup).
+      if (manual || pendingManualRef.current) {
+        setPhase({ k: "error", message: errorMessage(e) });
+      }
     } finally {
       busyRef.current = false;
+      pendingManualRef.current = false;
     }
   }, []);
 

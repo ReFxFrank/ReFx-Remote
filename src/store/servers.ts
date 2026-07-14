@@ -55,14 +55,16 @@ type ServersStore = {
   statsError: string | null;
   pending: Record<string, Pending>;
   actionError: string | null;
-  /** A tab the detail panel should switch to on next mount (deep links). */
-  requestedTab: string | null;
+  /** A tab the detail panel should switch to, scoped to the server it targets
+   *  (deep links / tray) so it can't be consumed by whatever panel is currently
+   *  mounted while the target is still loading. */
+  requestedOpen: { id: string; tab: string } | null;
 
   refresh: () => Promise<void>;
   setSearch: (q: string) => void;
   select: (id: string | null) => Promise<void>;
   focusServer: (id: string, console: boolean) => Promise<void>;
-  consumeRequestedTab: () => string | null;
+  consumeRequestedTab: (serverId: string) => string | null;
   pollStats: () => Promise<void>;
   power: (id: string, signal: PowerSignal) => Promise<void>;
   patchState: (id: string, state: ServerState) => void;
@@ -101,7 +103,7 @@ export const useServers = create<ServersStore>((set, get) => ({
   statsError: null,
   pending: {},
   actionError: null,
-  requestedTab: null,
+  requestedOpen: null,
 
   refresh: async () => {
     if (listInFlight) return; // no pile-up if a call outlives its interval
@@ -242,17 +244,23 @@ export const useServers = create<ServersStore>((set, get) => ({
   // loaded (refresh if we don't have it yet), selects it, and requests the
   // console tab when asked.
   focusServer: async (id, console) => {
-    set({ requestedTab: console ? "console" : null });
+    set({ requestedOpen: console ? { id, tab: "console" } : null });
     if (!get().servers.some((s) => s.id === id)) {
       await get().refresh().catch(() => undefined);
     }
     await get().select(id);
   },
 
-  consumeRequestedTab: () => {
-    const t = get().requestedTab;
-    if (t) set({ requestedTab: null });
-    return t;
+  // Consumed only by the panel whose server matches the request's target, so a
+  // request for a not-yet-loaded server can't hijack the tab of whatever panel
+  // is mounted while it loads.
+  consumeRequestedTab: (serverId) => {
+    const r = get().requestedOpen;
+    if (r && r.id === serverId) {
+      set({ requestedOpen: null });
+      return r.tab;
+    }
+    return null;
   },
 
   clearActionError: () => set({ actionError: null }),

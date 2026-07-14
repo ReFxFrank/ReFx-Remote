@@ -113,15 +113,22 @@ fn detect(
     prefs: NotifyPrefs,
 ) {
     let name = &s.name;
-    // Crash: was up, now down. A user stop/restart/kill also produces this
-    // edge, so a live intent means "this is the transition you asked for" —
-    // suppress it AND consume the intent, so a *subsequent* down (e.g. a real
-    // crash after a restart has brought the server back up, still inside the
-    // 120s window) is no longer swallowed.
-    if prev == ServerState::Running && is_down(s.state) {
+    // A departure from RUNNING is the pivotal event. `prev` is whatever we saw
+    // last poll, so the *first* time a server leaves RUNNING we get here with
+    // prev == Running — even for a graceful shutdown observed via the STOPPING
+    // intermediate (Running → Stopping → Offline), not just a direct
+    // Running → Offline edge.
+    //
+    // If the user just issued a power action (intent active), this departure is
+    // the transition they asked for: consume the intent so a *later* crash —
+    // e.g. after a restart brings the server back up, still inside the 120s
+    // window — is no longer suppressed. Otherwise a departure straight to a
+    // down state is a real crash. A departure to a transitional state
+    // (Stopping/Starting) with no intent is someone else's action — not a crash.
+    if prev == ServerState::Running && s.state != ServerState::Running {
         if intent.active(&s.id) {
             intent.clear(&s.id);
-        } else {
+        } else if is_down(s.state) {
             crashed.insert(s.id.clone());
             let _ = app.emit("status:crash", &s.id); // FE badge reacts sub-poll
             if prefs.crashed {
