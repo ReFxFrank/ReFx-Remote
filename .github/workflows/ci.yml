@@ -36,6 +36,22 @@ jobs:
       - name: Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
+      # `createUpdaterArtifacts` makes `tauri build` sign the updater bundle,
+      # which needs a key. CI only validates the build, so mint a THROWAWAY key
+      # per run — its signature is never published (real releases sign with the
+      # secret key in release.yml). This keeps NSIS/MSI packaging under test
+      # without depending on the release secret being set.
+      - name: Throwaway updater signing key (CI validation only)
+        shell: bash
+        run: |
+          npm run tauri -- signer generate --ci -p ci -w "$RUNNER_TEMP/ci.key" -f
+          {
+            echo "TAURI_SIGNING_PRIVATE_KEY<<__EOF__"
+            cat "$RUNNER_TEMP/ci.key"
+            echo "__EOF__"
+          } >> "$GITHUB_ENV"
+          echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD=ci" >> "$GITHUB_ENV"
+
       - name: Release build (NSIS + MSI bundles)
         run: npm run tauri build
 
