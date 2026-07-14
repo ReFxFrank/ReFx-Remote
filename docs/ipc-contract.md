@@ -20,8 +20,16 @@ Keep this file in lock-step with `src-tauri/src/commands.rs`.
 | `console_open` | `{ serverId }` | `ConsoleLine[]` — buffered scrollback; spawns the WS session if not already open. Subscribe to `console:{serverId}` **before** calling. | Phase 3 |
 | `console_close` | `{ serverId }` | `void` — drops the session's socket + task | Phase 3 |
 | `console_command` | `{ serverId, command }` | `void` — sent via REST `POST /command` (`console.command`; rejects `CONFLICT` if not running) | Phase 3 |
+| `settings_get` | — | `AppSettings` | Phase 5 |
+| `settings_set` | `{ next: AppSettings }` | `void` — applies OS autostart when it changed (rejects `OTHER` if that write fails), updates monitor prefs, persists | Phase 5 |
+| `copy_diagnostics` | — | `string` — last ~64 KB of the already-redacted log, for a support paste | Phase 5 |
+| `deeplink_ready` | `{ ready: boolean }` | `OpenServerEvent[]` — servers screen calls `true` on mount (draining any buffered `refx://` link) and `false` on unmount | Phase 5 |
+
+Phase 4 file/backup/startup/schedule/database commands are enumerated in `src-tauri/src/commands.rs` (`files_*`, `backups_*`/`backup_*`, `startup_get`, `variables_list`/`variable_set`, `schedules_list`/`schedule_*`, `databases_list`).
 
 `ConsoleLine` = `{ line: string, stream: "stdout"|"install", at: number }`.
+`AppSettings` = `{ notifyCrashed, notifyBackOnline, closeToTray, startWithWindows }` (all `boolean`).
+`OpenServerEvent` = `{ id: string, console: boolean }`.
 
 `Profile` = `{ id, email, firstName?, lastName?, globalRole?, mustChangePassword, totpEnabledAt?, permissions: string[] }`.
 `ServerSummary` = `{ id, shortId?, name, description?, state, serverType?, cpuCores?, memoryMb?, diskMb?, slots?, suspendedAt?, createdAt?, template?: {id?,name?,slug?}, node?: {name?,fqdn?}, primaryAllocation?: {ip?,port?,alias?} }`. `state` is one of the panel's `ServerState` values or `UNKNOWN` (forward-compatible).
@@ -47,7 +55,21 @@ status:{server_id}    { state: "RUNNING"|"STARTING"|"STOPPING"|"OFFLINE"|"CRASHE
 conn:{server_id}      { state: "connecting"|"live"|"retrying"|"failed"|"closed", detail?, attempt? }
 ```
 
-Planned (later phases): `app:update-available { version, notes }`.
+App-scoped events (Phase 5/6), emitted to the `main` window:
+
+```
+app:open-server    { id: string, console: boolean }   tray "Open" / refx:// deep link — jump to a server (and its console)
+app:check-updates   (no payload)                        tray "Check for updates" — UpdateBanner runs a manual check
+status:crash        "<serverId>"                        background monitor detected a crash — badge flips to CRASHED sub-poll
+```
+
+The auto-updater plugin emits its own `tauri://update*` events consumed by
+`@tauri-apps/plugin-updater`; the app drives it via `check()` /
+`downloadAndInstall()` in `src/lib/updater.ts` rather than listening directly.
+
+Deep link: the app registers the `refx://` scheme. `refx://server/{id}` opens a
+server; `refx://server/{id}/console` opens it on the console tab. `{id}` is
+charset-validated (`[A-Za-z0-9_-]`, ≤64) before use.
 
 Note: `stats:{id}` (WS) is poorer than REST `server_stats` on this backend
 (no `memTotalMb`/`players`/`uptimeMs`), so the detail-panel tiles stay on the

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { PowerSignal, ServerSummary } from "../lib/ipc";
 import { useServers } from "../store/servers";
 import { bytesRate, fromMb, pct, stateDot, stateLabel, uptime } from "../lib/format";
@@ -45,6 +45,19 @@ export default function ServerDetailPanel({ server }: { server: ServerSummary })
   const canSchedule = detailReady ? hasPerm("schedule.update", "schedule.*") : true;
   const canEditSettings = detailReady ? hasPerm("settings.update", "settings.*") : true;
   const [tab, setTab] = useState<Tab>("console");
+  const [confirmRestart, setConfirmRestart] = useState(false);
+
+  // Honour a deep-link/tray request to jump to a specific tab (e.g. console).
+  // Driven off the requestedTab VALUE (not just server.id) so a request for the
+  // already-selected server is honoured, and a stale request can't later hijack
+  // a different server's tab.
+  const requestedTab = useServers((s) => s.requestedTab);
+  const consumeRequestedTab = useServers((s) => s.consumeRequestedTab);
+  useEffect(() => {
+    if (!requestedTab) return;
+    const t = consumeRequestedTab();
+    if (t && (TABS as string[]).includes(t)) setTab(t as Tab);
+  }, [requestedTab, server.id, consumeRequestedTab]);
 
   const alloc = server.primaryAllocation;
   const address = alloc?.ip ? `${alloc.ip}:${alloc.port}` : null;
@@ -67,6 +80,20 @@ export default function ServerDetailPanel({ server }: { server: ServerSummary })
     clearActionError();
     void power(server.id, signal);
   }
+
+  // Ctrl+R (dispatched globally from the Servers screen) requests a restart of
+  // the selected server. Apply the same gate the Restart button uses — viewer
+  // permission, a restartable state, not already mid-action — then confirm, so
+  // a reflexive browser-reload keystroke can never silently cycle a live server.
+  const isRestartable =
+    server.state === "RUNNING" || server.state === "STARTING" || server.state === "STOPPING";
+  useEffect(() => {
+    const onReq = () => {
+      if (canPower !== false && isRestartable && !p) setConfirmRestart(true);
+    };
+    window.addEventListener("refx:request-restart", onReq);
+    return () => window.removeEventListener("refx:request-restart", onReq);
+  }, [canPower, isRestartable, p]);
 
   function copyAddress() {
     if (!address) return;
@@ -216,6 +243,37 @@ export default function ServerDetailPanel({ server }: { server: ServerSummary })
           </div>
         )}
       </div>
+
+      {confirmRestart && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => setConfirmRestart(false)}
+        >
+          <div className="refx-panel refx-beam w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold tracking-tight">Restart {server.name}?</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              This stops and starts the server, disconnecting anyone currently connected.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmRestart(false)}
+                className="btn-ghost rounded-md px-3 py-1.5 text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setConfirmRestart(false);
+                  doPower("restart");
+                }}
+                className="btn-primary rounded-md px-3 py-1.5 text-sm"
+              >
+                Restart
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

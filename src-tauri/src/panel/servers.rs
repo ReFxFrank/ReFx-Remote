@@ -151,6 +151,23 @@ impl PowerSignal {
             _ => None,
         }
     }
+
+    /// Whether this signal drives the server *down* and so should arm crash
+    /// suppression. `Start` has no down-transition to suppress — marking it
+    /// would wrongly swallow a genuine crash right after startup.
+    pub fn marks_intent(self) -> bool {
+        !matches!(self, Self::Start)
+    }
+
+    /// Human label for surfacing an action failure (e.g. in a tray notice).
+    pub fn verb(self) -> &'static str {
+        match self {
+            Self::Start => "start",
+            Self::Stop => "stop",
+            Self::Restart => "restart",
+            Self::Kill => "kill",
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -241,4 +258,27 @@ pub async fn send_command(auth: &AuthManager, id: &str, command: &str) -> Result
         return Err(PanelError::Other("The panel didn't accept the command.".into()));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PowerSignal;
+
+    #[test]
+    fn only_downward_signals_arm_crash_suppression() {
+        // Start has no offline transition to suppress — marking it would swallow
+        // a genuine crash right after startup.
+        assert!(!PowerSignal::Start.marks_intent());
+        assert!(PowerSignal::Stop.marks_intent());
+        assert!(PowerSignal::Restart.marks_intent());
+        assert!(PowerSignal::Kill.marks_intent());
+    }
+
+    #[test]
+    fn parse_round_trips_known_signals() {
+        for s in ["start", "stop", "restart", "kill"] {
+            assert_eq!(PowerSignal::parse(s).map(|p| p.verb()), Some(s));
+        }
+        assert!(PowerSignal::parse("reboot").is_none());
+    }
 }

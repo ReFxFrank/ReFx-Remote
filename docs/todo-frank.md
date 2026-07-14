@@ -22,3 +22,27 @@ The brief's original register, resolved where recon could resolve it. Items mark
 | 11 | Approve the revised architecture in [decisions.md](decisions.md) (auth = JWT login; console = Socket.IO client in Rust; SFTP for >32 MiB files; crash alerts via WS `power` events). | Approve — it's the only design the real backend supports. |
 | 12 | The recon found **4 shipped bugs in ReFxAndroid** against production (MFA login broken, variable update 404s, API-key create decode failure, file downloads always fail) and 2 panel-side quirks (WS `command` permission string `control.console` not grantable to sub-users; no server-rename route though web calls one). | Fix separately from the desktop project — see [recon/parity-cross-check.md](recon/parity-cross-check.md). |
 | 13 | Desktop User-Agent string (shows in Account → Sessions). | e.g. `ReFxDesktop/1.0.0 (Windows NT; x64)` — pick the final product name first (item 5). |
+
+## Phase 5 + 6 handoff (release engineering) — added 2026-07-13
+
+Everything below is wired and builds locally; these are the human-only / account-gated steps before the first public release.
+
+### A. Updater signing key — REQUIRED before the release workflow can sign
+- A minisign updater keypair was generated for you. The **public key is committed** in `src-tauri/tauri.conf.json` (`plugins.updater.pubkey`). The **private key is NOT in the repo** — it lives at `%USERPROFILE%\.tauri\refx-updater.key`, and its **password** at `%USERPROFILE%\.tauri\refx-updater.password.txt`.
+- Add two **GitHub Actions repository secrets** (Settings → Secrets and variables → Actions) so `.github/workflows/release.yml` can sign updater artifacts:
+  - `TAURI_SIGNING_PRIVATE_KEY` = the full contents of `%USERPROFILE%\.tauri\refx-updater.key`
+  - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` = the contents of `%USERPROFILE%\.tauri\refx-updater.password.txt`
+- Prefer to own the key yourself? Run `npm run tauri signer generate -p <your-password> -w %USERPROFILE%\.tauri\refx-updater.key`, paste the new **public** key into `tauri.conf.json`, and set the secrets from the new private key + password. Keep both backed up — losing either means installed clients can never be updated.
+
+### B. Authenticode code signing (Azure Trusted Signing) — item 7, still the longest lead
+- Without it, Windows SmartScreen warns users on first install. The updater's minisign signature (A) is independent — auto-update works without Authenticode, but the installer download will be flagged.
+- Create an **Azure Trusted Signing** account + certificate profile, then add repo secrets `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` (already referenced in `release.yml`) and set `bundle.windows.signCommand` in `tauri.conf.json` to invoke `trusted-signing-cli` (or Azure's `signtool` dlib). Left out of the config for now so unsigned local/CI builds still succeed.
+
+### C. Cutting a release
+1. Bump `version` in `src-tauri/tauri.conf.json` (and `package.json` if you keep them in sync).
+2. `git tag vX.Y.Z && git push origin vX.Y.Z` → the **Release** workflow builds, signs, and opens a **draft** GitHub release with the installers + `latest.json`.
+3. Review the draft, then **publish** it. Installed clients check `releases/latest/download/latest.json` on launch and every 6h, and via tray → "Check for updates".
+4. First-ever release has nothing to update *from* — install it manually to seed, then tag the next version to exercise the update path.
+
+### D. Still needs your input (unchanged from above)
+- Item 5 (final product name + 1024px icon — currently using the REFX wordmark), item 9 (EULA/privacy URLs), item 10 (support link for "Copy diagnostics" — currently copies the redacted log to clipboard), and **item 3 (a test server with a running game)** so the console/power/files paths can be live-verified.

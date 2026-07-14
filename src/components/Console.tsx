@@ -34,6 +34,7 @@ export default function Console({ serverId, canCommand }: Props) {
   const [cmdError, setCmdError] = useState<string | null>(null);
   const historyRef = useRef<string[]>([]);
   const histIdx = useRef<number>(-1);
+  const cmdInputRef = useRef<HTMLInputElement | null>(null);
 
   // Terminal + event wiring. Re-runs when the selected server changes.
   useEffect(() => {
@@ -151,6 +152,13 @@ export default function Console({ serverId, canCommand }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // Ctrl+` (handled globally in Servers) focuses the command line.
+  useEffect(() => {
+    const onFocus = () => cmdInputRef.current?.focus();
+    window.addEventListener("refx:focus-console", onFocus);
+    return () => window.removeEventListener("refx:focus-console", onFocus);
+  }, []);
+
   function jumpToBottom() {
     stickRef.current = true;
     termRef.current?.scrollToBottom();
@@ -266,6 +274,7 @@ export default function Console({ serverId, canCommand }: Props) {
         <div className="flex items-center gap-2">
           <span className="pl-1 text-muted-foreground">›</span>
           <input
+            ref={cmdInputRef}
             value={command}
             onChange={(e) => setCommand(e.target.value)}
             onKeyDown={onCommandKey}

@@ -43,6 +43,42 @@ Event names to the FE stay as briefed (`console:{id}`, `stats:{id}`, `status:{id
 
 `refx_` keys authenticate REST (via `X-Api-Key`) but the console gateway only verifies access JWTs — an API-key desktop app would have no live console, which is the feature the app lives or dies on (brief §7). Keys remain interesting for a future headless "tray-only monitor mode."
 
+## D-006 (2026-07-13): Phase 5 native surface + Phase 6 release engineering
+
+**Native surface (Phase 5).** Tray, background crash monitor, `refx://` deep
+links, and settings all live in Rust so they work with the window closed
+(close-to-tray keeps the monitor alive). Decisions worth recording:
+
+- **Crash-suppression is consume-on-suppress, not a fixed timer.** A user
+  stop/restart/kill drives the same `RUNNING → OFFLINE/CRASHED` edge a crash
+  does, so `PowerIntent` marks the server; the monitor suppresses the *first*
+  such edge and then **clears** the mark. A genuine crash *after* a restart has
+  brought the server back up (still inside the old 120 s window) is therefore
+  detected, not swallowed. The 120 s deadline is only a safety cap for an
+  action whose transition never materialises. `start` never marks intent (no
+  down-transition to suppress), and a failed power call clears the mark so it
+  suppresses nothing. (This was the central correctness point in the brief; the
+  original pure-timer version had a permanent-miss hole caught in review.)
+- **Deep-link inbox.** A `refx://` link can arrive before the servers screen's
+  listener mounts (cold-start, or clicked while signed out). Rust buffers links
+  in a queue and the frontend drains them once its listener is live and flips a
+  `ready` flag (all under one lock, decided exactly once). Link ids are charset-
+  validated before use so an external link can't smuggle a query/path segment
+  into the authenticated API path.
+- **Tray power failures surface as notifications** rather than failing silently;
+  the tray gates items on server state only (viewer permissions aren't on the
+  list payload), and the panel API is the real permission backstop.
+
+**Auto-update (Phase 6).** Updater via **minisign-signed GitHub Releases**: the
+release workflow publishes installers + `latest.json` to
+`ReFxFrank/ReFx-Remote`, and the app checks `releases/latest/download/latest.json`
+on launch, every 6 h, and on demand from the tray. The signature is verified
+against a pubkey baked into `tauri.conf.json`; the private key is a GitHub
+secret, never in the repo. **Authenticode (Azure Trusted Signing) is deferred**
+and kept out of `tauri.conf.json` for now so unsigned local/CI builds still
+succeed — it only affects SmartScreen on first install, independent of the
+minisign update-integrity chain. See [todo-frank.md](todo-frank.md) §A–C.
+
 ## D-005 (2026-07-13): Detail-panel stat tiles stay on REST, not the WS stats frame
 
 The brief (§6) says "when a websocket is open for a server, stop polling

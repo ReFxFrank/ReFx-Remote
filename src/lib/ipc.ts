@@ -143,6 +143,14 @@ export type ConnState = "connecting" | "live" | "retrying" | "failed" | "closed"
 export type ConnEvent = { state: ConnState; detail?: string; attempt?: number };
 export type StatusEvent = { state: ServerState };
 
+export type AppSettings = {
+  notifyCrashed: boolean;
+  notifyBackOnline: boolean;
+  closeToTray: boolean;
+  startWithWindows: boolean;
+};
+export type OpenServerEvent = { id: string; console: boolean };
+
 export const ipc = {
   appInfo: () => invoke<AppInfo>("app_info"),
   authStatus: () => invoke<AuthStatus>("auth_status"),
@@ -201,6 +209,11 @@ export const ipc = {
   scheduleRun: (serverId: string, scheduleId: string) =>
     invoke<void>("schedule_run", { serverId, scheduleId }),
   databasesList: (serverId: string) => invoke<Database[]>("databases_list", { serverId }),
+  settingsGet: () => invoke<AppSettings>("settings_get"),
+  settingsSet: (next: AppSettings) => invoke<void>("settings_set", { next }),
+  copyDiagnostics: () => invoke<string>("copy_diagnostics"),
+  deeplinkReady: (ready: boolean) =>
+    invoke<OpenServerEvent[]>("deeplink_ready", { ready }),
 };
 
 export function isIpcError(e: unknown): e is IpcError {

@@ -4,10 +4,11 @@
 //! Nothing returned here ever contains a token, password, or API key.
 
 use serde::Serialize;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
 use crate::console::{ConsoleLine, ConsoleManager};
+use crate::monitor::{Monitor, NotifyPrefs};
 use crate::panel::auth::LoginOutcome;
 use crate::panel::backups::{self, Backup};
 use crate::panel::databases::{self, Database};
@@ -17,6 +18,7 @@ use crate::panel::models::{PageMeta, Profile};
 use crate::panel::schedules::{self, Schedule};
 use crate::panel::servers::{self, LiveStats, PowerSignal, ServerDetail, ServerSummary};
 use crate::panel::startup::{self, Startup, Variable};
+use crate::settings::{Settings, SettingsStore};
 use crate::state::AppState;
 
 #[derive(Serialize)]
@@ -164,9 +166,21 @@ pub async fn server_power(
         message: "Unknown power action.".into(),
         mfa_methods: None,
     })?;
-    servers::power(&state.auth, &server_id, signal)
-        .await
-        .map_err(Into::into)
+    // Record intent so the background monitor doesn't misread the resulting
+    // offline transition as a crash — but only for signals that actually take
+    // the server down, and only tentatively: if the panel rejects the action
+    // (403, network, accepted:false) we clear the mark so a genuine crash in
+    // the next 120s isn't wrongly suppressed.
+    if signal.marks_intent() {
+        state.intent.mark(&server_id);
+    }
+    match servers::power(&state.auth, &server_id, signal).await {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            state.intent.clear(&server_id);
+            Err(e.into())
+        }
+    }
 }
 
 /// Open (or reuse) the live console for a server. Returns buffered
@@ -456,6 +470,81 @@ pub async fn databases_list(
     server_id: String,
 ) -> Result<Vec<Database>, IpcError> {
     databases::list(&state.auth, &server_id).await.map_err(Into::into)
+}
+
+// ── Settings + diagnostics ─────────────────────────────────────────────
+
+/// Mark the servers screen's `app:open-server` listener live (or torn down) and
+/// drain any deep link that arrived before it mounted. Called on mount with
+/// `true` (returning a buffered open, if any) and on unmount with `false`.
+#[tauri::command]
+pub fn deeplink_ready(
+    state: State<'_, AppState>,
+    ready: bool,
+) -> Vec<serde_json::Value> {
+    let mut inbox = state.deeplink.lock().expect("deeplink lock");
+    inbox.ready = ready;
+    if ready {
+        std::mem::take(&mut inbox.pending)
+    } else {
+        Vec::new()
+    }
+}
+
+#[tauri::command]
+pub fn settings_get(settings: State<'_, SettingsStore>) -> Settings {
+    settings.get()
+}
+
+#[tauri::command]
+pub fn settings_set(
+    app: AppHandle,
+    settings: State<'_, SettingsStore>,
+    monitor: State<'_, Monitor>,
+    next: Settings,
+) -> Result<(), IpcError> {
+    use tauri_plugin_autostart::ManagerExt;
+    // Only touch the OS autostart registration when it actually changed, and
+    // surface a failure instead of silently persisting a state we couldn't
+    // achieve (a denied Run-key write would otherwise leave the toggle stuck
+    // "on" while the app never autostarts).
+    let current = settings.get();
+    if next.start_with_windows != current.start_with_windows {
+        let launcher = app.autolaunch();
+        let res = if next.start_with_windows {
+            launcher.enable()
+        } else {
+            launcher.disable()
+        };
+        res.map_err(|e| IpcError {
+            code: "OTHER",
+            message: format!("Couldn't update \"Start with Windows\": {e}"),
+            mfa_methods: None,
+        })?;
+    }
+    monitor.set_prefs(NotifyPrefs {
+        crashed: next.notify_crashed,
+        back_online: next.notify_back_online,
+    });
+    settings.set(next);
+    Ok(())
+}
+
+/// Return the redacted diagnostic log tail (last ~64 KB) for a support bundle.
+/// The tracing layer already scrubs secrets, so this is safe to share.
+#[tauri::command]
+pub fn copy_diagnostics(app: AppHandle) -> Result<String, IpcError> {
+    let dir = app.path().app_log_dir().map_err(|e| IpcError {
+        code: "OTHER",
+        message: format!("Couldn't locate logs: {e}"),
+        mfa_methods: None,
+    })?;
+    let content = std::fs::read_to_string(dir.join("refx-desktop.log")).unwrap_or_default();
+    let mut start = content.len().saturating_sub(64 * 1024);
+    while start < content.len() && !content.is_char_boundary(start) {
+        start += 1;
+    }
+    Ok(content[start..].to_string())
 }
 
 #[tauri::command]

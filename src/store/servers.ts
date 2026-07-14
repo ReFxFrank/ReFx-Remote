@@ -55,10 +55,14 @@ type ServersStore = {
   statsError: string | null;
   pending: Record<string, Pending>;
   actionError: string | null;
+  /** A tab the detail panel should switch to on next mount (deep links). */
+  requestedTab: string | null;
 
   refresh: () => Promise<void>;
   setSearch: (q: string) => void;
   select: (id: string | null) => Promise<void>;
+  focusServer: (id: string, console: boolean) => Promise<void>;
+  consumeRequestedTab: () => string | null;
   pollStats: () => Promise<void>;
   power: (id: string, signal: PowerSignal) => Promise<void>;
   patchState: (id: string, state: ServerState) => void;
@@ -97,6 +101,7 @@ export const useServers = create<ServersStore>((set, get) => ({
   statsError: null,
   pending: {},
   actionError: null,
+  requestedTab: null,
 
   refresh: async () => {
     if (listInFlight) return; // no pile-up if a call outlives its interval
@@ -231,6 +236,23 @@ export const useServers = create<ServersStore>((set, get) => ({
     const pending = { ...get().pending };
     if (pending[id] && pending[id].stateAtSend !== state) delete pending[id];
     set({ servers, pending });
+  },
+
+  // Open a server from a tray click or refx:// deep link. Ensures the row is
+  // loaded (refresh if we don't have it yet), selects it, and requests the
+  // console tab when asked.
+  focusServer: async (id, console) => {
+    set({ requestedTab: console ? "console" : null });
+    if (!get().servers.some((s) => s.id === id)) {
+      await get().refresh().catch(() => undefined);
+    }
+    await get().select(id);
+  },
+
+  consumeRequestedTab: () => {
+    const t = get().requestedTab;
+    if (t) set({ requestedTab: null });
+    return t;
   },
 
   clearActionError: () => set({ actionError: null }),

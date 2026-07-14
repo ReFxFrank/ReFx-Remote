@@ -1,0 +1,63 @@
+name: Release
+
+# Tag a version to cut a release:
+#   git tag v0.1.1 && git push origin v0.1.1
+# Builds the signed NSIS installer + portable exe, generates the updater
+# artifacts (`*.sig` + `latest.json`), and publishes a DRAFT GitHub release.
+# Review the draft, then publish it to roll the update out to installed clients.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+# The updater signature (minisign) proves an update came from us; the WebView2
+# app verifies it against the pubkey baked into tauri.conf.json before applying.
+# Authenticode signing (Azure Trusted Signing) is what stops SmartScreen warning
+# users on first install — configured via bundle.windows.signCommand + the
+# AZURE_* secrets below. Both are optional locally but required for a real release.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build, sign, and draft release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Updater signing (minisign). Generate once with `npm run tauri signer generate`;
+          # store the private key + its password as repo secrets. The matching
+          # public key lives in tauri.conf.json (plugins.updater.pubkey).
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Authenticode via Azure Trusted Signing (consumed by bundle.windows.signCommand).
+          # TODO(frank): create an Azure Trusted Signing account + set these secrets.
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "ReFx Desktop ${{ github.ref_name }}"
+          releaseBody: "See the assets below to download and install this version."
+          releaseDraft: true
+          prerelease: false
+          # Emits latest.json (updater manifest) alongside the installers.
+          includeUpdaterJson: true
