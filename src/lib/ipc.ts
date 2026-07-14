@@ -151,6 +151,31 @@ export type AppSettings = {
 };
 export type OpenServerEvent = { id: string; console: boolean };
 
+// ── Admin / staff ──────────────────────────────────────────────────────
+export type AdminRole = {
+  id: string;
+  key: string;
+  name: string;
+  description?: string | null;
+  isSystem: boolean;
+  permissions: string[];
+  /** How many accounts hold this role. */
+  _count?: { users: number } | null;
+};
+export type RolePermissionCatalog = { wildcard?: string | null; permissions: string[] };
+export type AdminUser = {
+  id: string;
+  email: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  globalRole?: string | null;
+  state?: string | null;
+  roleId?: string | null;
+  createdAt?: string | null;
+  emailVerifiedAt?: string | null;
+};
+export type AdminUserList = { users: AdminUser[]; meta?: PageMeta };
+
 export const ipc = {
   appInfo: () => invoke<AppInfo>("app_info"),
   authStatus: () => invoke<AuthStatus>("auth_status"),
@@ -214,6 +239,29 @@ export const ipc = {
   copyDiagnostics: () => invoke<string>("copy_diagnostics"),
   deeplinkReady: (ready: boolean) =>
     invoke<OpenServerEvent[]>("deeplink_ready", { ready }),
+
+  // Staff/admin surface. Authorized server-side; the UI also gates on
+  // profile.permissions (src/lib/perms.ts).
+  admin: {
+    rolesList: () => invoke<AdminRole[]>("admin_roles_list"),
+    rolePermissions: () => invoke<RolePermissionCatalog>("admin_role_permissions"),
+    roleCreate: (key: string, name: string, description: string | null, permissions: string[]) =>
+      invoke<AdminRole>("admin_role_create", { key, name, description, permissions }),
+    roleUpdate: (
+      id: string,
+      patch: { name?: string; description?: string | null; permissions?: string[] },
+    ) => invoke<AdminRole>("admin_role_update", { id, ...patch }),
+    roleDelete: (id: string) => invoke<void>("admin_role_delete", { id }),
+    usersList: (opts?: {
+      page?: number;
+      pageSize?: number;
+      q?: string;
+      role?: string;
+      accountState?: string;
+    }) => invoke<AdminUserList>("admin_users_list", { ...opts }),
+    userSetRole: (userId: string, role: string | null, roleId: string | null) =>
+      invoke<AdminUser>("admin_user_set_role", { userId, role, roleId }),
+  },
 };
 
 export function isIpcError(e: unknown): e is IpcError {

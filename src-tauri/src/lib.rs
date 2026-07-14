@@ -7,6 +7,7 @@
 //! emitted events. The surface is enumerated in `docs/ipc-contract.md`.
 
 mod commands;
+mod commands_admin;
 pub mod deeplink;
 pub mod logging;
 pub mod monitor;
@@ -131,6 +132,13 @@ pub fn run() {
             commands::settings_set,
             commands::copy_diagnostics,
             commands::deeplink_ready,
+            commands_admin::admin_roles_list,
+            commands_admin::admin_role_permissions,
+            commands_admin::admin_role_create,
+            commands_admin::admin_role_update,
+            commands_admin::admin_role_delete,
+            commands_admin::admin_users_list,
+            commands_admin::admin_user_set_role,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

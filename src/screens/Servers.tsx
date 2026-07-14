@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { useServers } from "../store/servers";
 import { useAuth } from "../store/auth";
+import { useNav } from "../store/nav";
+import { isStaffPerms } from "../lib/perms";
 import { ipc, type OpenServerEvent, type ServerSummary } from "../lib/ipc";
 import { fromMb, stateDot, stateLabel } from "../lib/format";
 import ServerDetailPanel from "../components/ServerDetailPanel";
@@ -145,6 +147,15 @@ export default function Servers() {
             <span>Jump to…</span>
             <kbd className="rounded border border-white/10 bg-white/[0.04] px-1 py-0.5 font-mono text-[10px]">Ctrl K</kbd>
           </button>
+          {isStaffPerms(profile?.permissions) && (
+            <button
+              onClick={() => useNav.getState().setView("admin")}
+              className="btn-ghost rounded-md px-2.5 py-1.5 text-xs"
+              title="Open the staff admin suite"
+            >
+              Admin
+            </button>
+          )}
           <span className="text-muted-foreground">{profile?.email}</span>
           <button
             onClick={() => setSettingsOpen(true)}

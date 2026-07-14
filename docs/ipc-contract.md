@@ -27,6 +27,24 @@ Keep this file in lock-step with `src-tauri/src/commands.rs`.
 
 Phase 4 file/backup/startup/schedule/database commands are enumerated in `src-tauri/src/commands.rs` (`files_*`, `backups_*`/`backup_*`, `startup_get`, `variables_list`/`variable_set`, `schedules_list`/`schedule_*`, `databases_list`).
 
+### Admin / staff (`commands_admin.rs`, `admin_*`)
+
+Authorized server-side (403 → `FORBIDDEN`); the UI also gates on `profile.permissions`
+via `src/lib/perms.ts` (mirror of the backend catalog). Exposed under `ipc.admin.*`.
+
+| Command | Args | Returns | Perm | Since |
+|---|---|---|---|---|
+| `admin_roles_list` | — | `AdminRole[]` | `roles.manage` | Admin T0 |
+| `admin_role_permissions` | — | `{ wildcard?, permissions: string[] }` | `roles.manage` | Admin T0 |
+| `admin_role_create` | `{ key, name, description?, permissions: string[] }` | `AdminRole` | `roles.manage` | Admin T0 |
+| `admin_role_update` | `{ id, name?, description?, permissions? }` | `AdminRole` | `roles.manage` | Admin T0 |
+| `admin_role_delete` | `{ id }` | `void` (204; 400 if system/in-use) | `roles.manage` | Admin T0 |
+| `admin_users_list` | `{ page?, pageSize?, q?, role?, accountState? }` | `{ users: AdminUser[], meta? }` | `users.read` | Admin T0 |
+| `admin_user_set_role` | `{ userId, role?, roleId? }` | `AdminUser` | `roles.manage` | Admin T0 |
+
+`AdminRole` = `{ id, key, name, description?, isSystem, permissions: string[], _count?: { users } }`.
+`AdminUser` = `{ id, email, firstName?, lastName?, globalRole?, state?, roleId?, createdAt?, emailVerifiedAt? }`.
+
 `ConsoleLine` = `{ line: string, stream: "stdout"|"install", at: number }`.
 `AppSettings` = `{ notifyCrashed, notifyBackOnline, closeToTray, startWithWindows }` (all `boolean`).
 `OpenServerEvent` = `{ id: string, console: boolean }`.
