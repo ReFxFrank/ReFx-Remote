@@ -429,6 +429,205 @@ export type GrowthReport = {
   referral?: { signups: number; converted: number; creditIssuedMinor: number };
 };
 
+export type GameTemplate = {
+  id: string;
+  name?: string | null;
+  slug?: string | null;
+  author?: string | null;
+  description?: string | null;
+  supportsLinux?: boolean | null;
+  supportsWindows?: boolean | null;
+};
+// ── Admin Tier 3 types ──
+// ── content ──
+// Add to the "Admin / staff" section of src/lib/ipc.ts:
+
+export type AlertSeverity = "INFO" | "WARNING" | "CRITICAL";
+export type GlobalAlert = {
+  id: string;
+  severity?: AlertSeverity | null;
+  title?: string | null;
+  body?: string | null;
+  isActive?: boolean | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  createdAt?: string | null;
+};
+
+export type HomepageAlertType = "INFO" | "SUCCESS" | "WARNING" | "DANGER" | "PROMO";
+export type HomepageAlert = {
+  id: string;
+  type?: HomepageAlertType | null;
+  title?: string | null;
+  body?: string | null;
+  isActive?: boolean | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  ctaLabel?: string | null;
+  ctaUrl?: string | null;
+  dismissible?: boolean | null;
+  priority?: number | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+};
+
+export type IncidentImpact = "MAINTENANCE" | "DEGRADED" | "OUTAGE";
+export type IncidentStatusStage = "INVESTIGATING" | "IDENTIFIED" | "MONITORING" | "RESOLVED";
+export type IncidentUpdate = {
+  id?: string | null;
+  incidentId?: string | null;
+  status?: IncidentStatusStage | null;
+  body?: string | null;
+  createdAt?: string | null;
+};
+export type StatusIncident = {
+  id: string;
+  title?: string | null;
+  status?: IncidentStatusStage | null;
+  impact?: IncidentImpact | null;
+  components: string[];
+  startedAt?: string | null;
+  resolvedAt?: string | null;
+  updates: IncidentUpdate[];
+  createdAt?: string | null;
+  updatedAt?: string | null;
+};
+
+// ── settings ──
+// ── Platform settings (settings.manage) ────────────────────────────────
+export type EmailConfig = {
+  configured: boolean;
+  host?: string | null;
+  port?: number | null;
+  user?: string | null;
+  from?: string | null;
+  secure: boolean;
+  /** Transactional-email theme. */
+  theme?: "dark" | "light" | null;
+  /** Whether an SMTP password is stored (the password itself is never returned). */
+  passwordSet: boolean;
+};
+export type TestEmailResult = { delivered: boolean };
+export type SteamConfig = {
+  username?: string | null;
+  apiKeySet: boolean;
+  passwordSet: boolean;
+  /** username + password both set (steamcmd can log in). */
+  loginConfigured: boolean;
+  /** A one-time Steam Guard code is staged for the next install. */
+  guardCodePending: boolean;
+};
+export type SteamVerifyResult = { ok: boolean; output: string };
+export type VanityConfig = {
+  enabled: boolean;
+  /** One-time fee in minor units (200 = $2.00; 0 = free). */
+  feeMinor: number;
+  reservedWords: string[];
+};
+export type ReferralConfig = {
+  enabled: boolean;
+  /** Two-sided reward in minor units (500 = $5.00). */
+  rewardMinor: number;
+};
+
+// ── dbhosts ──
+export type DatabaseHost = {
+  id: string;
+  name?: string | null;
+  engine?: string | null;
+  host?: string | null;
+  port?: number | null;
+  username?: string | null;
+  publicHost?: string | null;
+  maxDatabases?: number | null;
+  isActive?: boolean | null;
+  databaseCount?: number | null;
+  createdAt?: string | null;
+};
+export type DatabaseHostTestResult = { ok: boolean };
+
+// ── products ──
+// Add near the other admin types in ipc.ts. If any of ProductType / BillingModel /
+// BillingInterval / Price / Product / HardwareTier already exist, dedupe on merge.
+export type ProductType =
+  | "GAME_SERVER"
+  | "VOICE_SERVER"
+  | "WEB_HOSTING"
+  | "VPS"
+  | "DEDICATED"
+  | "ADDON"
+  | "BOT_HOSTING";
+export type BillingModel = "HARDWARE_TIER" | "PER_SLOT";
+export type BillingInterval =
+  | "WEEKLY"
+  | "BIWEEKLY"
+  | "MONTHLY"
+  | "QUARTERLY"
+  | "SEMIANNUAL"
+  | "ANNUAL";
+export type Price = {
+  id: string;
+  productId?: string | null;
+  hardwareTierId?: string | null;
+  interval?: BillingInterval | string | null;
+  currency?: string | null;
+  amountMinor?: number | null;
+  stripePriceId?: string | null;
+  isActive?: boolean | null;
+};
+export type HardwareTier = {
+  id: string;
+  productId?: string | null;
+  name?: string | null;
+  description?: string | null;
+  cpuCores?: number | null;
+  memoryMb?: number | null;
+  diskMb?: number | null;
+  recommendedPlayers?: number | null;
+  isRecommended?: boolean | null;
+  isActive?: boolean | null;
+  sortOrder?: number | null;
+  prices: Price[];
+};
+export type Product = {
+  id: string;
+  type?: ProductType | string | null;
+  billingModel?: BillingModel | string | null;
+  name?: string | null;
+  slug?: string | null;
+  description?: string | null;
+  isActive?: boolean | null;
+  cpuCores?: number | null;
+  memoryMb?: number | null;
+  diskMb?: number | null;
+  slots?: number | null;
+  allowedTemplateIds: string[];
+  hardwareTiers: HardwareTier[];
+  prices: Price[];
+  perSlot?: boolean | null;
+  gameTemplateId?: string | null;
+  minSlots?: number | null;
+  maxSlots?: number | null;
+  slotStep?: number | null;
+  cpuPerSlot?: number | null;
+  memoryMbPerSlot?: number | null;
+  diskMbPerSlot?: number | null;
+  // Reserved; always [] against the current backend (see Rust module note).
+  variables: unknown[];
+};
+
+// ── team ──
+export type TeamMember = {
+  id: string;
+  name?: string | null;
+  title?: string | null;
+  bio?: string | null;
+  avatarUrl?: string | null;
+  link?: string | null;
+  isActive: boolean;
+  sortOrder: number;
+};
+
 export const ipc = {
   appInfo: () => invoke<AppInfo>("app_info"),
   authStatus: () => invoke<AuthStatus>("auth_status"),
@@ -655,6 +854,280 @@ export const ipc = {
       invoke<GiftCard>("admin_gift_card_create", { balanceMinor, confirmAmount, note, expiresAt }),
     giftCardSetActive: (id: string, isActive: boolean) =>
       invoke<GiftCard>("admin_gift_card_set_active", { id, isActive }),
+
+    templates: () => invoke<GameTemplate[]>("admin_templates_list"),
+    templateGet: (id: string) => invoke<GameTemplate>("admin_template_get", { id }),
+    // ── Admin Tier 3 bindings ──
+    // Content — global alerts (content.read to list; content.manage to write)
+        alertsList: () => invoke<GlobalAlert[]>("admin_alerts_list"),
+        alertCreate: (input: {
+          title: string;
+          body: string;
+          severity?: AlertSeverity;
+          isActive?: boolean;
+          startsAt?: string | null;
+          endsAt?: string | null;
+        }) => invoke<GlobalAlert>("admin_alert_create", { ...input }),
+        alertUpdate: (
+          id: string,
+          patch: {
+            severity?: AlertSeverity;
+            title?: string;
+            body?: string;
+            isActive?: boolean;
+            startsAt?: string | null;
+            endsAt?: string | null;
+          },
+        ) => invoke<GlobalAlert>("admin_alert_update", { id, ...patch }),
+        alertDelete: (id: string) => invoke<void>("admin_alert_delete", { id }),
+
+        // Content — homepage alerts (content.manage). `type` maps to `alertType`
+        // at the IPC boundary (reserved word); the response still uses `type`.
+        homepageAlertsList: () => invoke<HomepageAlert[]>("admin_homepage_alerts_list"),
+        homepageAlertCreate: (input: {
+          title: string;
+          body: string;
+          type?: HomepageAlertType;
+          isActive?: boolean;
+          startsAt?: string | null;
+          endsAt?: string | null;
+          ctaLabel?: string | null;
+          ctaUrl?: string | null;
+          dismissible?: boolean;
+          priority?: number;
+        }) =>
+          invoke<HomepageAlert>("admin_homepage_alert_create", {
+            alertType: input.type,
+            title: input.title,
+            body: input.body,
+            isActive: input.isActive,
+            startsAt: input.startsAt,
+            endsAt: input.endsAt,
+            ctaLabel: input.ctaLabel,
+            ctaUrl: input.ctaUrl,
+            dismissible: input.dismissible,
+            priority: input.priority,
+          }),
+        homepageAlertUpdate: (
+          id: string,
+          patch: {
+            type?: HomepageAlertType;
+            title?: string;
+            body?: string;
+            isActive?: boolean;
+            startsAt?: string | null;
+            endsAt?: string | null;
+            ctaLabel?: string | null;
+            ctaUrl?: string | null;
+            dismissible?: boolean;
+            priority?: number;
+          },
+        ) =>
+          invoke<HomepageAlert>("admin_homepage_alert_update", {
+            id,
+            alertType: patch.type,
+            title: patch.title,
+            body: patch.body,
+            isActive: patch.isActive,
+            startsAt: patch.startsAt,
+            endsAt: patch.endsAt,
+            ctaLabel: patch.ctaLabel,
+            ctaUrl: patch.ctaUrl,
+            dismissible: patch.dismissible,
+            priority: patch.priority,
+          }),
+        homepageAlertDelete: (id: string) => invoke<void>("admin_homepage_alert_delete", { id }),
+
+        // Content — status incidents (content.manage)
+        incidentsList: () => invoke<StatusIncident[]>("admin_incidents_list"),
+        incidentCreate: (input: {
+          title: string;
+          impact: IncidentImpact;
+          components: string[];
+          body: string;
+          status?: IncidentStatusStage;
+          notify?: boolean;
+        }) => invoke<StatusIncident>("admin_incident_create", { ...input }),
+        incidentAddUpdate: (id: string, update: { status: IncidentStatusStage; body: string }) =>
+          invoke<StatusIncident>("admin_incident_add_update", { id, ...update }),
+        incidentUpdate: (
+          id: string,
+          patch: { title?: string; impact?: IncidentImpact; status?: IncidentStatusStage; components?: string[] },
+        ) => invoke<StatusIncident>("admin_incident_update", { id, ...patch }),
+        incidentDelete: (id: string) => invoke<void>("admin_incident_delete", { id }),
+
+    // Platform settings (settings.manage). Secrets are write-only: omit a
+        // password/apiKey/guardCode field to keep the stored value. Email + Steam
+        // updates return void — refetch the *Get after saving.
+        settingsEmailGet: () => invoke<EmailConfig>("admin_settings_email_get"),
+        settingsEmailUpdate: (input: {
+          host?: string;
+          port?: number;
+          user?: string;
+          password?: string;
+          from?: string;
+          secure?: boolean;
+          theme?: "dark" | "light";
+        }) => invoke<void>("admin_settings_email_update", { ...input }),
+        settingsEmailTest: (to: string) =>
+          invoke<TestEmailResult>("admin_settings_email_test", { to }),
+        settingsSteamGet: () => invoke<SteamConfig>("admin_settings_steam_get"),
+        settingsSteamUpdate: (input: {
+          apiKey?: string;
+          username?: string;
+          password?: string;
+          guardCode?: string;
+        }) => invoke<void>("admin_settings_steam_update", { ...input }),
+        settingsSteamVerify: (nodeId: string, guardCode?: string) =>
+          invoke<SteamVerifyResult>("admin_settings_steam_verify", { nodeId, guardCode }),
+        settingsVanityGet: () => invoke<VanityConfig>("admin_settings_vanity_get"),
+        settingsVanityUpdate: (input: {
+          enabled?: boolean;
+          feeMinor?: number;
+          reservedWords?: string[];
+        }) => invoke<VanityConfig>("admin_settings_vanity_update", { ...input }),
+        settingsReferralsGet: () => invoke<ReferralConfig>("admin_settings_referrals_get"),
+        settingsReferralsUpdate: (input: {
+          enabled?: boolean;
+          rewardMinor?: number;
+        }) => invoke<ReferralConfig>("admin_settings_referrals_update", { ...input }),
+
+    databaseHostsList: () => invoke<DatabaseHost[]>("admin_database_hosts_list"),
+        databaseHostCreate: (input: {
+          name: string;
+          engine?: string;
+          host: string;
+          port?: number;
+          username: string;
+          password: string;
+          publicHost: string;
+          maxDatabases?: number;
+          isActive?: boolean;
+        }) => invoke<DatabaseHost>("admin_database_host_create", { ...input }),
+        databaseHostUpdate: (
+          id: string,
+          patch: {
+            name?: string;
+            host?: string;
+            port?: number;
+            username?: string;
+            password?: string;
+            publicHost?: string;
+            maxDatabases?: number;
+            isActive?: boolean;
+          },
+        ) => invoke<DatabaseHost>("admin_database_host_update", { id, ...patch }),
+        databaseHostDelete: (id: string) => invoke<void>("admin_database_host_delete", { id }),
+        databaseHostTest: (id: string) =>
+          invoke<DatabaseHostTestResult>("admin_database_host_test", { id }),
+
+    productsList: () => invoke<Product[]>("admin_products_list"),
+        productGet: (id: string) => invoke<Product>("admin_product_get", { id }),
+        productCreate: (input: {
+          productType: ProductType;
+          name: string;
+          slug: string;
+          billingModel?: BillingModel;
+          description?: string;
+          isActive?: boolean;
+          gameTemplateId?: string;
+          allowedTemplateIds?: string[];
+          minSlots?: number;
+          maxSlots?: number;
+          slotStep?: number;
+          cpuPerSlot?: number;
+          memoryMbPerSlot?: number;
+          diskMbPerSlot?: number;
+        }) => invoke<Product>("admin_product_create", { ...input }),
+        productUpdate: (
+          id: string,
+          input: {
+            productType?: ProductType;
+            name?: string;
+            slug?: string;
+            billingModel?: BillingModel;
+            description?: string;
+            isActive?: boolean;
+            gameTemplateId?: string;
+            allowedTemplateIds?: string[];
+            minSlots?: number;
+            maxSlots?: number;
+            slotStep?: number;
+            cpuPerSlot?: number;
+            memoryMbPerSlot?: number;
+            diskMbPerSlot?: number;
+          },
+        ) => invoke<Product>("admin_product_update", { id, ...input }),
+        productDelete: (id: string) => invoke<void>("admin_product_delete", { id }),
+        priceCreate: (
+          productId: string,
+          input: { amountMinor: number; interval?: BillingInterval; currency?: string; isActive?: boolean },
+        ) => invoke<Price>("admin_price_create", { productId, ...input }),
+        tierPriceCreate: (
+          productId: string,
+          tierId: string,
+          input: { amountMinor: number; interval?: BillingInterval; currency?: string; isActive?: boolean },
+        ) => invoke<Price>("admin_tier_price_create", { productId, tierId, ...input }),
+        priceUpdate: (
+          priceId: string,
+          input: { amountMinor?: number; interval?: BillingInterval; currency?: string; isActive?: boolean },
+        ) => invoke<Price>("admin_price_update", { priceId, ...input }),
+        priceDelete: (priceId: string) => invoke<void>("admin_price_delete", { priceId }),
+        tierCreate: (
+          productId: string,
+          input: {
+            name: string;
+            cpuCores: number;
+            memoryMb: number;
+            diskMb: number;
+            description?: string;
+            recommendedPlayers?: number;
+            isRecommended?: boolean;
+            isActive?: boolean;
+            sortOrder?: number;
+          },
+        ) => invoke<HardwareTier>("admin_tier_create", { productId, ...input }),
+        tierUpdate: (
+          tierId: string,
+          input: {
+            name?: string;
+            description?: string;
+            cpuCores?: number;
+            memoryMb?: number;
+            diskMb?: number;
+            recommendedPlayers?: number;
+            isRecommended?: boolean;
+            isActive?: boolean;
+            sortOrder?: number;
+          },
+        ) => invoke<HardwareTier>("admin_tier_update", { tierId, ...input }),
+        tierDelete: (tierId: string) => invoke<void>("admin_tier_delete", { tierId }),
+
+    // auto-converted to the Rust snake_case params by Tauri, e.g. avatarUrl ->
+    // avatar_url, isActive -> is_active, sortOrder -> sort_order).
+    staffList: () => invoke<TeamMember[]>("admin_staff_list"),
+    staffCreate: (input: {
+      name: string;
+      title: string;
+      bio?: string;
+      avatarUrl?: string;
+      link?: string;
+      isActive?: boolean;
+      sortOrder?: number;
+    }) => invoke<TeamMember>("admin_staff_create", { ...input }),
+    staffUpdate: (
+      id: string,
+      patch: {
+        name?: string;
+        title?: string;
+        bio?: string;
+        avatarUrl?: string;
+        link?: string;
+        isActive?: boolean;
+        sortOrder?: number;
+      },
+    ) => invoke<TeamMember>("admin_staff_update", { id, ...patch }),
+    staffDelete: (id: string) => invoke<void>("admin_staff_delete", { id }),
   },
 };
 

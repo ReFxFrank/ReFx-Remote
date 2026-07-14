@@ -12,6 +12,11 @@ import AdminSupport from "./AdminSupport";
 import AdminNodes from "./AdminNodes";
 import AdminBilling from "./AdminBilling";
 import { AdminGrowth, AdminCoupons, AdminGiftCards } from "./AdminCommerce";
+import AdminContent from "./AdminContent";
+import AdminSettings from "./AdminSettings";
+import AdminDbHosts from "./AdminDbHosts";
+import AdminProducts from "./AdminProducts";
+import AdminTeam from "./AdminTeam";
 
 type NavItem = { screen: AdminScreen; label: string; perm: AdminPermission; ready?: boolean };
 type NavGroup = { group: string; items: NavItem[] };
@@ -29,8 +34,8 @@ const NAV: NavGroup[] = [
     group: "Infrastructure",
     items: [
       { screen: "nodes", label: "Nodes", perm: "nodes.read", ready: true },
-      { screen: "locations", label: "Locations", perm: "locations.manage" },
-      { screen: "database-hosts", label: "Database hosts", perm: "nodes.manage" },
+      { screen: "locations", label: "Locations", perm: "locations.manage", ready: true },
+      { screen: "database-hosts", label: "Database hosts", perm: "nodes.manage", ready: true },
       { screen: "templates", label: "Templates", perm: "catalog.read" },
     ],
   },
@@ -49,16 +54,16 @@ const NAV: NavGroup[] = [
       { screen: "growth", label: "Growth", perm: "billing.read", ready: true },
       { screen: "coupons", label: "Coupons", perm: "billing.manage", ready: true },
       { screen: "gift-cards", label: "Gift cards", perm: "billing.manage", ready: true },
-      { screen: "products", label: "Products", perm: "catalog.read" },
+      { screen: "products", label: "Products", perm: "catalog.read", ready: true },
     ],
   },
   {
     group: "Platform",
     items: [
-      { screen: "content", label: "Content & banners", perm: "content.read" },
-      { screen: "team", label: "Team page", perm: "content.manage" },
+      { screen: "content", label: "Content & banners", perm: "content.read", ready: true },
+      { screen: "team", label: "Team page", perm: "content.manage", ready: true },
       { screen: "roles", label: "Roles & staff", perm: "roles.manage", ready: true },
-      { screen: "settings", label: "Settings", perm: "settings.manage" },
+      { screen: "settings", label: "Settings", perm: "settings.manage", ready: true },
     ],
   },
 ];
@@ -155,6 +160,12 @@ function AdminScreenView({ screen, ready }: { screen: AdminScreen; ready?: boole
   if (screen === "growth") return <AdminGrowth />;
   if (screen === "coupons") return <AdminCoupons />;
   if (screen === "gift-cards") return <AdminGiftCards />;
+  if (screen === "content") return <AdminContent />;
+  if (screen === "settings") return <AdminSettings />;
+  if (screen === "database-hosts") return <AdminDbHosts />;
+  if (screen === "products") return <AdminProducts />;
+  if (screen === "team") return <AdminTeam />;
+  if (screen === "locations") return <AdminNodes />;
   return (
     <div className="flex h-full items-center justify-center p-8 text-center">
       <div className="max-w-sm">

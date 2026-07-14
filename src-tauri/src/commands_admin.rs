@@ -10,7 +10,8 @@ use serde::Serialize;
 use tauri::State;
 
 use crate::panel::admin::{
-    billing, catalog, nodes, platform, roles, servers as admin_servers, support, users,
+    billing, catalog, content, dbhosts, nodes, platform, products, roles, servers as admin_servers,
+    settings, support, team, templates, users,
 };
 use crate::panel::error::IpcError;
 use crate::panel::models::PageMeta;
@@ -844,4 +845,727 @@ pub async fn admin_gift_card_set_active(
 ) -> Result<catalog::GiftCard, IpcError> {
     let body = catalog::GiftCardUpdate { is_active: Some(is_active), ..Default::default() };
     catalog::gift_card_update(&state.auth, &id, &body).await.map_err(Into::into)
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Tier 3: content, settings, database hosts, products, team
+// ═══════════════════════════════════════════════════════════════════════
+
+// NOTE: add `content` to the existing admin `use` list in commands_admin.rs:
+//   use crate::panel::admin::{
+//       billing, catalog, content, nodes, platform, roles, servers as admin_servers, support, users,
+//   };
+// No Serialize list-wrapper structs are needed: all three list endpoints are
+// plain JSON arrays (like coupons/gift-cards), returned as Vec<_> directly.
+
+// ── Content: global alerts (content.read read / content.manage writes) ──
+
+#[tauri::command]
+pub async fn admin_alerts_list(
+    state: State<'_, AppState>,
+) -> Result<Vec<content::GlobalAlert>, IpcError> {
+    content::alerts(&state.auth).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_alert_create(
+    state: State<'_, AppState>,
+    severity: Option<String>,
+    title: String,
+    body: String,
+    is_active: Option<bool>,
+    starts_at: Option<String>,
+    ends_at: Option<String>,
+) -> Result<content::GlobalAlert, IpcError> {
+    let payload = content::AlertBody {
+        severity: severity.as_deref(),
+        title: Some(&title),
+        body: Some(&body),
+        is_active,
+        starts_at: starts_at.as_deref(),
+        ends_at: ends_at.as_deref(),
+    };
+    content::alert_create(&state.auth, &payload).await.map_err(Into::into)
+}
+
+#[allow(clippy::too_many_arguments)]
+#[tauri::command]
+pub async fn admin_alert_update(
+    state: State<'_, AppState>,
+    id: String,
+    severity: Option<String>,
+    title: Option<String>,
+    body: Option<String>,
+    is_active: Option<bool>,
+    starts_at: Option<String>,
+    ends_at: Option<String>,
+) -> Result<content::GlobalAlert, IpcError> {
+    let payload = content::AlertBody {
+        severity: severity.as_deref(),
+        title: title.as_deref(),
+        body: body.as_deref(),
+        is_active,
+        starts_at: starts_at.as_deref(),
+        ends_at: ends_at.as_deref(),
+    };
+    content::alert_update(&state.auth, &id, &payload).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_alert_delete(state: State<'_, AppState>, id: String) -> Result<(), IpcError> {
+    content::alert_delete(&state.auth, &id).await.map_err(Into::into)
+}
+
+// ── Content: homepage alerts (content.manage) ──────────────────────────
+
+#[tauri::command]
+pub async fn admin_homepage_alerts_list(
+    state: State<'_, AppState>,
+) -> Result<Vec<content::HomepageAlert>, IpcError> {
+    content::homepage_alerts(&state.auth).await.map_err(Into::into)
+}
+
+// `type` is a Rust keyword; the param is `alert_type` (JS key `alertType`).
+// The HomepageAlert response still serializes the field as `type`.
+#[allow(clippy::too_many_arguments)]
+#[tauri::command]
+pub async fn admin_homepage_alert_create(
+    state: State<'_, AppState>,
+    alert_type: Option<String>,
+    title: String,
+    body: String,
+    is_active: Option<bool>,
+    starts_at: Option<String>,
+    ends_at: Option<String>,
+    cta_label: Option<String>,
+    cta_url: Option<String>,
+    dismissible: Option<bool>,
+    priority: Option<i64>,
+) -> Result<content::HomepageAlert, IpcError> {
+    let payload = content::HomepageAlertBody {
+        type_: alert_type.as_deref(),
+        title: Some(&title),
+        body: Some(&body),
+        is_active,
+        starts_at: starts_at.as_deref(),
+        ends_at: ends_at.as_deref(),
+        cta_label: cta_label.as_deref(),
+        cta_url: cta_url.as_deref(),
+        dismissible,
+        priority,
+    };
+    content::homepage_alert_create(&state.auth, &payload).await.map_err(Into::into)
+}
+
+#[allow(clippy::too_many_arguments)]
+#[tauri::command]
+pub async fn admin_homepage_alert_update(
+    state: State<'_, AppState>,
+    id: String,
+    alert_type: Option<String>,
+    title: Option<String>,
+    body: Option<String>,
+    is_active: Option<bool>,
+    starts_at: Option<String>,
+    ends_at: Option<String>,
+    cta_label: Option<String>,
+    cta_url: Option<String>,
+    dismissible: Option<bool>,
+    priority: Option<i64>,
+) -> Result<content::HomepageAlert, IpcError> {
+    let payload = content::HomepageAlertBody {
+        type_: alert_type.as_deref(),
+        title: title.as_deref(),
+        body: body.as_deref(),
+        is_active,
+        starts_at: starts_at.as_deref(),
+        ends_at: ends_at.as_deref(),
+        cta_label: cta_label.as_deref(),
+        cta_url: cta_url.as_deref(),
+        dismissible,
+        priority,
+    };
+    content::homepage_alert_update(&state.auth, &id, &payload).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_homepage_alert_delete(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<(), IpcError> {
+    content::homepage_alert_delete(&state.auth, &id).await.map_err(Into::into)
+}
+
+// ── Content: status incidents (content.manage) ─────────────────────────
+
+#[tauri::command]
+pub async fn admin_incidents_list(
+    state: State<'_, AppState>,
+) -> Result<Vec<content::StatusIncident>, IpcError> {
+    content::incidents(&state.auth).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_incident_create(
+    state: State<'_, AppState>,
+    title: String,
+    impact: String,
+    components: Vec<String>,
+    body: String,
+    status: Option<String>,
+    notify: Option<bool>,
+) -> Result<content::StatusIncident, IpcError> {
+    let payload = content::IncidentCreate {
+        title: &title,
+        impact: &impact,
+        components: &components,
+        body: &body,
+        status: status.as_deref(),
+        notify,
+    };
+    content::incident_create(&state.auth, &payload).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_incident_add_update(
+    state: State<'_, AppState>,
+    id: String,
+    status: String,
+    body: String,
+) -> Result<content::StatusIncident, IpcError> {
+    let payload = content::IncidentUpdateBody { status: &status, body: &body };
+    content::incident_add_update(&state.auth, &id, &payload).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_incident_update(
+    state: State<'_, AppState>,
+    id: String,
+    title: Option<String>,
+    impact: Option<String>,
+    status: Option<String>,
+    components: Option<Vec<String>>,
+) -> Result<content::StatusIncident, IpcError> {
+    let payload = content::IncidentPatch {
+        title: title.as_deref(),
+        impact: impact.as_deref(),
+        status: status.as_deref(),
+        components: components.as_deref(),
+    };
+    content::incident_update(&state.auth, &id, &payload).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_incident_delete(state: State<'_, AppState>, id: String) -> Result<(), IpcError> {
+    content::incident_delete(&state.auth, &id).await.map_err(Into::into)
+}
+
+// NOTE: also add `settings` to the existing top-of-file import:
+//   use crate::panel::admin::{ ..., settings, ... };
+// No list-wrapper structs are needed (none of these endpoints paginate).
+
+// ── Platform settings (settings.manage) ────────────────────────────────
+
+#[tauri::command]
+pub async fn admin_settings_email_get(
+    state: State<'_, AppState>,
+) -> Result<settings::EmailConfig, IpcError> {
+    settings::email_get(&state.auth).await.map_err(Into::into)
+}
+
+/// Apply SMTP edits. `password` is write-only — a blank/omitted value keeps the
+/// stored one. Returns nothing; the screen should refetch the masked config.
+#[allow(clippy::too_many_arguments)]
+#[tauri::command]
+pub async fn admin_settings_email_update(
+    state: State<'_, AppState>,
+    host: Option<String>,
+    port: Option<u16>,
+    user: Option<String>,
+    password: Option<String>,
+    from: Option<String>,
+    secure: Option<bool>,
+    theme: Option<String>,
+) -> Result<(), IpcError> {
+    let body = settings::EmailUpdate { host, port, user, password, from, secure, theme };
+    settings::email_update(&state.auth, &body).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_settings_email_test(
+    state: State<'_, AppState>,
+    to: String,
+) -> Result<settings::TestEmailResult, IpcError> {
+    settings::email_test(&state.auth, &to).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_settings_steam_get(
+    state: State<'_, AppState>,
+) -> Result<settings::SteamConfig, IpcError> {
+    settings::steam_get(&state.auth).await.map_err(Into::into)
+}
+
+/// Apply Steam edits. `api_key`, `password`, `guard_code` are write-only —
+/// omitted values keep the stored ones. Returns nothing; refetch after.
+#[tauri::command]
+pub async fn admin_settings_steam_update(
+    state: State<'_, AppState>,
+    api_key: Option<String>,
+    username: Option<String>,
+    password: Option<String>,
+    guard_code: Option<String>,
+) -> Result<(), IpcError> {
+    let body = settings::SteamUpdate { api_key, username, password, guard_code };
+    settings::steam_update(&state.auth, &body).await.map_err(Into::into)
+}
+
+/// Run the steamcmd login probe on a node (caches machine-auth there). Consumes
+/// the staged Guard code on success.
+#[tauri::command]
+pub async fn admin_settings_steam_verify(
+    state: State<'_, AppState>,
+    node_id: String,
+    guard_code: Option<String>,
+) -> Result<settings::SteamVerifyResult, IpcError> {
+    settings::steam_verify(&state.auth, &node_id, guard_code.as_deref())
+        .await
+        .map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_settings_vanity_get(
+    state: State<'_, AppState>,
+) -> Result<settings::VanityConfig, IpcError> {
+    settings::vanity_get(&state.auth).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_settings_vanity_update(
+    state: State<'_, AppState>,
+    enabled: Option<bool>,
+    fee_minor: Option<i64>,
+    reserved_words: Option<Vec<String>>,
+) -> Result<settings::VanityConfig, IpcError> {
+    let body = settings::VanityUpdate { enabled, fee_minor, reserved_words };
+    settings::vanity_update(&state.auth, &body).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_settings_referrals_get(
+    state: State<'_, AppState>,
+) -> Result<settings::ReferralConfig, IpcError> {
+    settings::referrals_get(&state.auth).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_settings_referrals_update(
+    state: State<'_, AppState>,
+    enabled: Option<bool>,
+    reward_minor: Option<i64>,
+) -> Result<settings::ReferralConfig, IpcError> {
+    let body = settings::ReferralUpdate { enabled, reward_minor };
+    settings::referrals_update(&state.auth, &body).await.map_err(Into::into)
+}
+
+// 1) Add `pub mod dbhosts;` to src-tauri/src/panel/admin/mod.rs
+// 2) Add `dbhosts` to the import in commands_admin.rs:
+//    use crate::panel::admin::{billing, catalog, dbhosts, nodes, platform, roles, servers as admin_servers, support, users};
+// 3) Paste these wrappers (list returns a plain Vec, like coupons — no list-wrapper struct needed):
+
+// ── Database hosts (nodes.read / nodes.manage) ─────────────────────────
+
+#[tauri::command]
+pub async fn admin_database_hosts_list(
+    state: State<'_, AppState>,
+) -> Result<Vec<dbhosts::DatabaseHost>, IpcError> {
+    dbhosts::list(&state.auth).await.map_err(Into::into)
+}
+
+/// Register a host. `password` is the write-only admin credential (encrypted
+/// server-side, never returned).
+#[allow(clippy::too_many_arguments)]
+#[tauri::command]
+pub async fn admin_database_host_create(
+    state: State<'_, AppState>,
+    name: String,
+    engine: Option<String>,
+    host: String,
+    port: Option<u16>,
+    username: String,
+    password: String,
+    public_host: String,
+    max_databases: Option<i64>,
+    is_active: Option<bool>,
+) -> Result<dbhosts::DatabaseHost, IpcError> {
+    let body = dbhosts::CreateHostBody {
+        name: &name,
+        engine: engine.as_deref(),
+        host: &host,
+        port,
+        username: &username,
+        password: &password,
+        public_host: &public_host,
+        max_databases,
+        is_active,
+    };
+    dbhosts::create(&state.auth, &body).await.map_err(Into::into)
+}
+
+/// Partial update. Omit `password` to keep the current one (engine is immutable).
+#[allow(clippy::too_many_arguments)]
+#[tauri::command]
+pub async fn admin_database_host_update(
+    state: State<'_, AppState>,
+    id: String,
+    name: Option<String>,
+    host: Option<String>,
+    port: Option<u16>,
+    username: Option<String>,
+    password: Option<String>,
+    public_host: Option<String>,
+    max_databases: Option<i64>,
+    is_active: Option<bool>,
+) -> Result<dbhosts::DatabaseHost, IpcError> {
+    let body = dbhosts::UpdateHostBody {
+        name: name.as_deref(),
+        host: host.as_deref(),
+        port,
+        username: username.as_deref(),
+        password: password.as_deref(),
+        public_host: public_host.as_deref(),
+        max_databases,
+        is_active,
+    };
+    dbhosts::update(&state.auth, &id, &body).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_database_host_delete(state: State<'_, AppState>, id: String) -> Result<(), IpcError> {
+    dbhosts::delete(&state.auth, &id).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_database_host_test(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<dbhosts::TestResult, IpcError> {
+    dbhosts::test(&state.auth, &id).await.map_err(Into::into)
+}
+
+// NOTE: add `products` to the existing `use crate::panel::admin::{...}` import at
+// the top of commands_admin.rs (alongside billing, catalog, nodes, ...).
+// No list-wrapper struct needed: GET /admin/products returns a plain array, so
+// admin_products_list returns Vec<products::Product> directly (like coupons).
+
+// ── Catalog: products, hardware tiers + prices (catalog.read / catalog.manage) ──
+
+#[tauri::command]
+pub async fn admin_products_list(
+    state: State<'_, AppState>,
+) -> Result<Vec<products::Product>, IpcError> {
+    products::list(&state.auth).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_product_get(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<products::Product, IpcError> {
+    products::get(&state.auth, &id).await.map_err(Into::into)
+}
+
+#[allow(clippy::too_many_arguments)]
+#[tauri::command]
+pub async fn admin_product_create(
+    state: State<'_, AppState>,
+    product_type: String,
+    name: String,
+    slug: String,
+    billing_model: Option<String>,
+    description: Option<String>,
+    is_active: Option<bool>,
+    game_template_id: Option<String>,
+    allowed_template_ids: Option<Vec<String>>,
+    min_slots: Option<i64>,
+    max_slots: Option<i64>,
+    slot_step: Option<i64>,
+    cpu_per_slot: Option<f64>,
+    memory_mb_per_slot: Option<i64>,
+    disk_mb_per_slot: Option<i64>,
+) -> Result<products::Product, IpcError> {
+    let body = products::ProductBody {
+        r#type: Some(&product_type),
+        name: Some(&name),
+        slug: Some(&slug),
+        billing_model: billing_model.as_deref(),
+        description: description.as_deref(),
+        is_active,
+        game_template_id: game_template_id.as_deref(),
+        allowed_template_ids: allowed_template_ids.as_deref(),
+        min_slots,
+        max_slots,
+        slot_step,
+        cpu_per_slot,
+        memory_mb_per_slot,
+        disk_mb_per_slot,
+        ..Default::default()
+    };
+    products::create(&state.auth, &body).await.map_err(Into::into)
+}
+
+#[allow(clippy::too_many_arguments)]
+#[tauri::command]
+pub async fn admin_product_update(
+    state: State<'_, AppState>,
+    id: String,
+    product_type: Option<String>,
+    name: Option<String>,
+    slug: Option<String>,
+    billing_model: Option<String>,
+    description: Option<String>,
+    is_active: Option<bool>,
+    game_template_id: Option<String>,
+    allowed_template_ids: Option<Vec<String>>,
+    min_slots: Option<i64>,
+    max_slots: Option<i64>,
+    slot_step: Option<i64>,
+    cpu_per_slot: Option<f64>,
+    memory_mb_per_slot: Option<i64>,
+    disk_mb_per_slot: Option<i64>,
+) -> Result<products::Product, IpcError> {
+    let body = products::ProductBody {
+        r#type: product_type.as_deref(),
+        name: name.as_deref(),
+        slug: slug.as_deref(),
+        billing_model: billing_model.as_deref(),
+        description: description.as_deref(),
+        is_active,
+        game_template_id: game_template_id.as_deref(),
+        allowed_template_ids: allowed_template_ids.as_deref(),
+        min_slots,
+        max_slots,
+        slot_step,
+        cpu_per_slot,
+        memory_mb_per_slot,
+        disk_mb_per_slot,
+        ..Default::default()
+    };
+    products::update(&state.auth, &id, &body).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_product_delete(state: State<'_, AppState>, id: String) -> Result<(), IpcError> {
+    products::delete(&state.auth, &id).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_price_create(
+    state: State<'_, AppState>,
+    product_id: String,
+    amount_minor: i64,
+    interval: Option<String>,
+    currency: Option<String>,
+    is_active: Option<bool>,
+) -> Result<products::Price, IpcError> {
+    let body = products::PriceBody {
+        amount_minor: Some(amount_minor),
+        interval: interval.as_deref(),
+        currency: currency.as_deref(),
+        is_active,
+        ..Default::default()
+    };
+    products::price_create(&state.auth, &product_id, &body).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_tier_price_create(
+    state: State<'_, AppState>,
+    product_id: String,
+    tier_id: String,
+    amount_minor: i64,
+    interval: Option<String>,
+    currency: Option<String>,
+    is_active: Option<bool>,
+) -> Result<products::Price, IpcError> {
+    let body = products::PriceBody {
+        amount_minor: Some(amount_minor),
+        interval: interval.as_deref(),
+        currency: currency.as_deref(),
+        is_active,
+        ..Default::default()
+    };
+    products::tier_price_create(&state.auth, &product_id, &tier_id, &body).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_price_update(
+    state: State<'_, AppState>,
+    price_id: String,
+    amount_minor: Option<i64>,
+    interval: Option<String>,
+    currency: Option<String>,
+    is_active: Option<bool>,
+) -> Result<products::Price, IpcError> {
+    let body = products::PriceBody {
+        amount_minor,
+        interval: interval.as_deref(),
+        currency: currency.as_deref(),
+        is_active,
+        ..Default::default()
+    };
+    products::price_update(&state.auth, &price_id, &body).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_price_delete(state: State<'_, AppState>, price_id: String) -> Result<(), IpcError> {
+    products::price_delete(&state.auth, &price_id).await.map_err(Into::into)
+}
+
+#[allow(clippy::too_many_arguments)]
+#[tauri::command]
+pub async fn admin_tier_create(
+    state: State<'_, AppState>,
+    product_id: String,
+    name: String,
+    cpu_cores: f64,
+    memory_mb: i64,
+    disk_mb: i64,
+    description: Option<String>,
+    recommended_players: Option<i64>,
+    is_recommended: Option<bool>,
+    is_active: Option<bool>,
+    sort_order: Option<i64>,
+) -> Result<products::HardwareTier, IpcError> {
+    let body = products::TierBody {
+        name: Some(&name),
+        description: description.as_deref(),
+        cpu_cores: Some(cpu_cores),
+        memory_mb: Some(memory_mb),
+        disk_mb: Some(disk_mb),
+        recommended_players,
+        is_recommended,
+        is_active,
+        sort_order,
+    };
+    products::tier_create(&state.auth, &product_id, &body).await.map_err(Into::into)
+}
+
+#[allow(clippy::too_many_arguments)]
+#[tauri::command]
+pub async fn admin_tier_update(
+    state: State<'_, AppState>,
+    tier_id: String,
+    name: Option<String>,
+    description: Option<String>,
+    cpu_cores: Option<f64>,
+    memory_mb: Option<i64>,
+    disk_mb: Option<i64>,
+    recommended_players: Option<i64>,
+    is_recommended: Option<bool>,
+    is_active: Option<bool>,
+    sort_order: Option<i64>,
+) -> Result<products::HardwareTier, IpcError> {
+    let body = products::TierBody {
+        name: name.as_deref(),
+        description: description.as_deref(),
+        cpu_cores,
+        memory_mb,
+        disk_mb,
+        recommended_players,
+        is_recommended,
+        is_active,
+        sort_order,
+    };
+    products::tier_update(&state.auth, &tier_id, &body).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_tier_delete(state: State<'_, AppState>, tier_id: String) -> Result<(), IpcError> {
+    products::tier_delete(&state.auth, &tier_id).await.map_err(Into::into)
+}
+
+// NOTE: add `team` to the existing `use crate::panel::admin::{...}` import at the
+// top of commands_admin.rs (alongside billing, catalog, nodes, ...).
+// Also add `pub mod team;` to src-tauri/src/panel/admin/mod.rs.
+// The list endpoint is a simple array (not paginated), so no list-wrapper
+// struct is needed — admin_staff_list returns Vec<team::TeamMember> directly,
+// matching admin_coupons_list.
+
+// ── Team (public "Meet the team" page — content.manage) ────────────────
+
+#[tauri::command]
+pub async fn admin_staff_list(state: State<'_, AppState>) -> Result<Vec<team::TeamMember>, IpcError> {
+    team::list(&state.auth).await.map_err(Into::into)
+}
+
+#[allow(clippy::too_many_arguments)]
+#[tauri::command]
+pub async fn admin_staff_create(
+    state: State<'_, AppState>,
+    name: String,
+    title: String,
+    bio: Option<String>,
+    avatar_url: Option<String>,
+    link: Option<String>,
+    is_active: Option<bool>,
+    sort_order: Option<i64>,
+) -> Result<team::TeamMember, IpcError> {
+    let body = team::TeamMemberCreate {
+        name: &name,
+        title: &title,
+        bio: bio.as_deref(),
+        avatar_url: avatar_url.as_deref(),
+        link: link.as_deref(),
+        is_active,
+        sort_order,
+    };
+    team::create(&state.auth, &body).await.map_err(Into::into)
+}
+
+#[allow(clippy::too_many_arguments)]
+#[tauri::command]
+pub async fn admin_staff_update(
+    state: State<'_, AppState>,
+    id: String,
+    name: Option<String>,
+    title: Option<String>,
+    bio: Option<String>,
+    avatar_url: Option<String>,
+    link: Option<String>,
+    is_active: Option<bool>,
+    sort_order: Option<i64>,
+) -> Result<team::TeamMember, IpcError> {
+    let body = team::TeamMemberUpdate {
+        name: name.as_deref(),
+        title: title.as_deref(),
+        bio: bio.as_deref(),
+        avatar_url: avatar_url.as_deref(),
+        link: link.as_deref(),
+        is_active,
+        sort_order,
+    };
+    team::update(&state.auth, &id, &body).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_staff_delete(state: State<'_, AppState>, id: String) -> Result<(), IpcError> {
+    team::delete(&state.auth, &id).await.map_err(Into::into)
+}
+
+// ── Server templates (catalog.read) ────────────────────────────────────
+
+#[tauri::command]
+pub async fn admin_templates_list(
+    state: State<'_, AppState>,
+) -> Result<Vec<templates::GameTemplate>, IpcError> {
+    templates::list(&state.auth).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_template_get(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<templates::GameTemplate, IpcError> {
+    templates::get(&state.auth, &id).await.map_err(Into::into)
 }

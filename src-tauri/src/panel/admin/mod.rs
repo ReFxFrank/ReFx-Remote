@@ -9,9 +9,15 @@
 
 pub mod billing;
 pub mod catalog;
+pub mod content;
+pub mod dbhosts;
 pub mod nodes;
 pub mod platform;
+pub mod products;
 pub mod roles;
 pub mod servers;
+pub mod settings;
 pub mod support;
+pub mod team;
+pub mod templates;
 pub mod users;
