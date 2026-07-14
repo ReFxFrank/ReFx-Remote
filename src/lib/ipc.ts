@@ -289,6 +289,52 @@ export type AdminMetrics = {
   serversByState: Record<string, number>;
   nodes: { id: string; name?: string | null; cpuPct?: number | null; memPct?: number | null; diskPct?: number | null }[];
 };
+export type SupportPerson = {
+  id: string;
+  email?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  globalRole?: string | null;
+  avatarUrl?: string | null;
+};
+export type Ticket = {
+  id: string;
+  number?: number | null;
+  subject?: string | null;
+  state?: string | null;
+  priority?: string | null;
+  requesterId?: string | null;
+  assigneeId?: string | null;
+  requester?: SupportPerson | null;
+  assignee?: SupportPerson | null;
+  slaBreached?: boolean | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  _count?: { messages: number } | null;
+};
+export type TicketMessage = {
+  id: string;
+  authorId?: string | null;
+  body?: string | null;
+  isInternal: boolean;
+  createdAt?: string | null;
+  author?: SupportPerson | null;
+};
+export type TicketDetail = {
+  id: string;
+  number?: number | null;
+  subject?: string | null;
+  state?: string | null;
+  priority?: string | null;
+  requester?: SupportPerson | null;
+  assignee?: SupportPerson | null;
+  assigneeId?: string | null;
+  slaBreached?: boolean | null;
+  createdAt?: string | null;
+  messages: TicketMessage[];
+};
+export type TicketList = { tickets: Ticket[]; meta?: PageMeta };
+export type CannedResponse = { id: string; title?: string | null; body?: string | null; tags: string[] };
 
 export const ipc = {
   appInfo: () => invoke<AppInfo>("app_info"),
@@ -437,6 +483,29 @@ export const ipc = {
       to?: string;
     }) => invoke<AuditLogList>("admin_audit_logs", { ...opts }),
     metrics: () => invoke<AdminMetrics>("admin_metrics"),
+
+    ticketsList: (opts?: {
+      page?: number;
+      pageSize?: number;
+      q?: string;
+      ticketState?: string;
+      priority?: string;
+      mine?: boolean;
+    }) => invoke<TicketList>("admin_tickets_list", { ...opts }),
+    ticketGet: (id: string) => invoke<TicketDetail>("admin_ticket_get", { id }),
+    ticketReply: (id: string, body: string, isInternal: boolean) =>
+      invoke<TicketMessage>("admin_ticket_reply", { id, body, isInternal }),
+    ticketUpdate: (
+      id: string,
+      patch: { ticketState?: string; priority?: string; assigneeId?: string; categoryId?: string },
+    ) => invoke<Ticket>("admin_ticket_update", { id, ...patch }),
+    ticketAssign: (id: string, assigneeId: string) =>
+      invoke<Ticket>("admin_ticket_assign", { id, assigneeId }),
+    ticketClose: (id: string) => invoke<Ticket>("admin_ticket_close", { id }),
+    ticketArchive: (id: string) => invoke<Ticket>("admin_ticket_archive", { id }),
+    ticketDelete: (id: string) => invoke<void>("admin_ticket_delete", { id }),
+    supportStaff: () => invoke<SupportPerson[]>("admin_support_staff"),
+    cannedResponses: () => invoke<CannedResponse[]>("admin_canned_responses"),
   },
 };
 

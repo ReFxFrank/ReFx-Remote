@@ -8,6 +8,7 @@ import AdminServers from "./AdminServers";
 import AdminUsers from "./AdminUsers";
 import AdminDashboard from "./AdminDashboard";
 import AdminAudit from "./AdminAudit";
+import AdminSupport from "./AdminSupport";
 
 type NavItem = { screen: AdminScreen; label: string; perm: AdminPermission; ready?: boolean };
 type NavGroup = { group: string; items: NavItem[] };
@@ -33,7 +34,7 @@ const NAV: NavGroup[] = [
   {
     group: "Support & ops",
     items: [
-      { screen: "support", label: "Support", perm: "support.read" },
+      { screen: "support", label: "Support", perm: "support.read", ready: true },
       { screen: "audit", label: "Audit log", perm: "audit.read", ready: true },
     ],
   },
@@ -132,6 +133,7 @@ function AdminScreenView({ screen, ready }: { screen: AdminScreen; ready?: boole
   if (screen === "users") return <AdminUsers />;
   if (screen === "dashboard") return <AdminDashboard />;
   if (screen === "audit") return <AdminAudit />;
+  if (screen === "support") return <AdminSupport />;
   return (
     <div className="flex h-full items-center justify-center p-8 text-center">
       <div className="max-w-sm">

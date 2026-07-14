@@ -9,7 +9,7 @@
 use serde::Serialize;
 use tauri::State;
 
-use crate::panel::admin::{platform, roles, servers as admin_servers, users};
+use crate::panel::admin::{platform, roles, servers as admin_servers, support, users};
 use crate::panel::error::IpcError;
 use crate::panel::models::PageMeta;
 use crate::state::AppState;
@@ -414,4 +414,107 @@ pub async fn admin_audit_logs(
 #[tauri::command]
 pub async fn admin_metrics(state: State<'_, AppState>) -> Result<platform::AdminMetrics, IpcError> {
     platform::metrics(&state.auth).await.map_err(Into::into)
+}
+
+// ── Support desk (support.read / support.manage) ───────────────────────
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TicketList {
+    pub tickets: Vec<support::Ticket>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub meta: Option<PageMeta>,
+}
+
+#[tauri::command]
+pub async fn admin_tickets_list(
+    state: State<'_, AppState>,
+    page: Option<u32>,
+    page_size: Option<u32>,
+    q: Option<String>,
+    ticket_state: Option<String>,
+    priority: Option<String>,
+    mine: Option<bool>,
+) -> Result<TicketList, IpcError> {
+    let filter = support::TicketFilter {
+        q: q.as_deref(),
+        state: ticket_state.as_deref(),
+        priority: priority.as_deref(),
+        mine: mine.unwrap_or(false),
+    };
+    let page = support::tickets_list(&state.auth, page.unwrap_or(1), page_size.unwrap_or(25), &filter)
+        .await?;
+    Ok(TicketList { tickets: page.data, meta: page.meta })
+}
+
+#[tauri::command]
+pub async fn admin_ticket_get(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<support::TicketDetail, IpcError> {
+    support::ticket_get(&state.auth, &id).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_ticket_reply(
+    state: State<'_, AppState>,
+    id: String,
+    body: String,
+    is_internal: bool,
+) -> Result<support::TicketMessage, IpcError> {
+    support::ticket_reply(&state.auth, &id, &body, is_internal).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_ticket_update(
+    state: State<'_, AppState>,
+    id: String,
+    ticket_state: Option<String>,
+    priority: Option<String>,
+    assignee_id: Option<String>,
+    category_id: Option<String>,
+) -> Result<support::Ticket, IpcError> {
+    let update = support::TicketUpdate {
+        state: ticket_state.as_deref(),
+        priority: priority.as_deref(),
+        assignee_id: assignee_id.as_deref(),
+        category_id: category_id.as_deref(),
+    };
+    support::ticket_update(&state.auth, &id, &update).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_ticket_assign(
+    state: State<'_, AppState>,
+    id: String,
+    assignee_id: String,
+) -> Result<support::Ticket, IpcError> {
+    support::ticket_assign(&state.auth, &id, &assignee_id).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_ticket_close(state: State<'_, AppState>, id: String) -> Result<support::Ticket, IpcError> {
+    support::ticket_close(&state.auth, &id).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_ticket_archive(state: State<'_, AppState>, id: String) -> Result<support::Ticket, IpcError> {
+    support::ticket_archive(&state.auth, &id).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_ticket_delete(state: State<'_, AppState>, id: String) -> Result<(), IpcError> {
+    support::ticket_delete(&state.auth, &id).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_support_staff(state: State<'_, AppState>) -> Result<Vec<support::Person>, IpcError> {
+    support::staff(&state.auth).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_canned_responses(
+    state: State<'_, AppState>,
+) -> Result<Vec<support::CannedResponse>, IpcError> {
+    support::canned_list(&state.auth).await.map_err(Into::into)
 }

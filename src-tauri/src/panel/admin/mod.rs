@@ -10,4 +10,5 @@
 pub mod platform;
 pub mod roles;
 pub mod servers;
+pub mod support;
 pub mod users;
