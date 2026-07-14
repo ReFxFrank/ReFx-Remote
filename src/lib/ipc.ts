@@ -263,6 +263,32 @@ export type VoiceStatus = {
   alreadyEnabled?: boolean | null;
   disabled?: boolean | null;
 };
+export type AuditLog = {
+  id: string;
+  actorId?: string | null;
+  actor?: { email?: string | null } | null;
+  action?: string | null;
+  targetType?: string | null;
+  targetId?: string | null;
+  ip?: string | null;
+  metadata?: unknown;
+  createdAt?: string | null;
+};
+export type AuditLogList = { entries: AuditLog[]; meta?: PageMeta };
+export type AdminMetrics = {
+  totals?: {
+    users: number;
+    servers: number;
+    nodesOnline: number;
+    openTickets: number;
+    activeSubscriptions: number;
+    mrrMinor: number;
+    mrrCurrency?: string | null;
+    revenueMinor: number;
+  } | null;
+  serversByState: Record<string, number>;
+  nodes: { id: string; name?: string | null; cpuPct?: number | null; memPct?: number | null; diskPct?: number | null }[];
+};
 
 export const ipc = {
   appInfo: () => invoke<AppInfo>("app_info"),
@@ -399,6 +425,18 @@ export const ipc = {
     serverReinstall: (id: string) => invoke<unknown>("admin_server_reinstall", { id }),
     serverVanityStrip: (id: string, refundCredit: boolean, confirm: boolean) =>
       invoke<unknown>("admin_server_vanity_strip", { id, refundCredit, confirm }),
+
+    auditLogs: (opts?: {
+      page?: number;
+      pageSize?: number;
+      actorId?: string;
+      targetType?: string;
+      targetId?: string;
+      action?: string;
+      from?: string;
+      to?: string;
+    }) => invoke<AuditLogList>("admin_audit_logs", { ...opts }),
+    metrics: () => invoke<AdminMetrics>("admin_metrics"),
   },
 };
 

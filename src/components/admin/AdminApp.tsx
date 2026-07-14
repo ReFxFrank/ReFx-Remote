@@ -6,6 +6,8 @@ import { LogoWordmark } from "../Logo";
 import Roles from "./Roles";
 import AdminServers from "./AdminServers";
 import AdminUsers from "./AdminUsers";
+import AdminDashboard from "./AdminDashboard";
+import AdminAudit from "./AdminAudit";
 
 type NavItem = { screen: AdminScreen; label: string; perm: AdminPermission; ready?: boolean };
 type NavGroup = { group: string; items: NavItem[] };
@@ -13,7 +15,7 @@ type NavGroup = { group: string; items: NavItem[] };
 // The full staff nav. Items are permission-gated; screens not yet implemented
 // (ready !== true) render a placeholder. Tiers fill these in.
 const NAV: NavGroup[] = [
-  { group: "Overview", items: [{ screen: "dashboard", label: "Dashboard", perm: "dashboard.read" }] },
+  { group: "Overview", items: [{ screen: "dashboard", label: "Dashboard", perm: "dashboard.read", ready: true }] },
   { group: "Fleet", items: [{ screen: "servers", label: "Servers", perm: "servers.read", ready: true }] },
   {
     group: "People",
@@ -32,7 +34,7 @@ const NAV: NavGroup[] = [
     group: "Support & ops",
     items: [
       { screen: "support", label: "Support", perm: "support.read" },
-      { screen: "audit", label: "Audit log", perm: "audit.read" },
+      { screen: "audit", label: "Audit log", perm: "audit.read", ready: true },
     ],
   },
   {
@@ -128,6 +130,8 @@ function AdminScreenView({ screen, ready }: { screen: AdminScreen; ready?: boole
   if (screen === "roles") return <Roles />;
   if (screen === "servers") return <AdminServers />;
   if (screen === "users") return <AdminUsers />;
+  if (screen === "dashboard") return <AdminDashboard />;
+  if (screen === "audit") return <AdminAudit />;
   return (
     <div className="flex h-full items-center justify-center p-8 text-center">
       <div className="max-w-sm">

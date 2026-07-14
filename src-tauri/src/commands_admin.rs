@@ -9,7 +9,7 @@
 use serde::Serialize;
 use tauri::State;
 
-use crate::panel::admin::{roles, servers as admin_servers, users};
+use crate::panel::admin::{platform, roles, servers as admin_servers, users};
 use crate::panel::error::IpcError;
 use crate::panel::models::PageMeta;
 use crate::state::AppState;
@@ -373,4 +373,45 @@ pub async fn admin_server_vanity_strip(
         });
     }
     admin_servers::vanity_strip(&state.auth, &id, refund_credit).await.map_err(Into::into)
+}
+
+// ── Platform observability (audit.read / dashboard.read) ───────────────
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuditLogList {
+    pub entries: Vec<platform::AuditLog>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub meta: Option<PageMeta>,
+}
+
+#[allow(clippy::too_many_arguments)]
+#[tauri::command]
+pub async fn admin_audit_logs(
+    state: State<'_, AppState>,
+    page: Option<u32>,
+    page_size: Option<u32>,
+    actor_id: Option<String>,
+    target_type: Option<String>,
+    target_id: Option<String>,
+    action: Option<String>,
+    from: Option<String>,
+    to: Option<String>,
+) -> Result<AuditLogList, IpcError> {
+    let filter = platform::AuditFilter {
+        actor_id: actor_id.as_deref(),
+        target_type: target_type.as_deref(),
+        target_id: target_id.as_deref(),
+        action: action.as_deref(),
+        from: from.as_deref(),
+        to: to.as_deref(),
+    };
+    let page = platform::audit_logs(&state.auth, page.unwrap_or(1), page_size.unwrap_or(50), &filter)
+        .await?;
+    Ok(AuditLogList { entries: page.data, meta: page.meta })
+}
+
+#[tauri::command]
+pub async fn admin_metrics(state: State<'_, AppState>) -> Result<platform::AdminMetrics, IpcError> {
+    platform::metrics(&state.auth).await.map_err(Into::into)
 }

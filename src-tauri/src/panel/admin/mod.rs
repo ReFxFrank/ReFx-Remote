@@ -7,6 +7,7 @@
 //! The frontend gates the UI on `profile.permissions` (see `src/lib/perms.ts`),
 //! and money-moving commands re-check `panel::perms` in Rust as defense-in-depth.
 
+pub mod platform;
 pub mod roles;
 pub mod servers;
 pub mod users;

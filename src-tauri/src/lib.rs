@@ -162,6 +162,8 @@ pub fn run() {
             commands_admin::admin_server_unsuspend,
             commands_admin::admin_server_reinstall,
             commands_admin::admin_server_vanity_strip,
+            commands_admin::admin_audit_logs,
+            commands_admin::admin_metrics,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
