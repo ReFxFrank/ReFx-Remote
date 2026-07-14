@@ -58,14 +58,20 @@ export default function SignIn() {
 
         {mfa ? (
           passkeyOnly ? (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void verifyPasskey()}
-              className="btn-primary refx-sheen relative mt-6 w-full rounded-md px-3 py-2.5 text-sm font-semibold disabled:opacity-50"
-            >
-              {busy ? "Waiting for Windows Hello…" : "Use passkey (Windows Hello)"}
-            </button>
+            <>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void verifyPasskey()}
+                className="btn-primary refx-sheen relative mt-6 w-full rounded-md px-3 py-2.5 text-sm font-semibold disabled:opacity-50"
+              >
+                {busy ? "Waiting for Windows Hello…" : "Use passkey (Windows Hello)"}
+              </button>
+              <p className="mt-3 text-xs text-muted-foreground">
+                Works with Windows Hello, a security key, or your phone. A passkey saved in a
+                browser extension (e.g. Dashlane, 1Password) can't be used by the desktop app.
+              </p>
+            </>
           ) : (
             <>
               <label className="refx-eyebrow mt-6 block" htmlFor="code">
