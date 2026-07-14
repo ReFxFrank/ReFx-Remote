@@ -269,6 +269,33 @@ async fn concurrent_401s_rotate_the_token_only_once() {
 }
 
 #[tokio::test]
+async fn vault_write_failure_clears_the_stale_token_instead_of_stranding_it() {
+    // A credential store that leaves the OLD token in place when a write fails
+    // (the real keyring behavior). After a rotation persists a NEW token and the
+    // write fails, the vault must be CLEARED — not left holding the old, now
+    // server-rotated token, which would replay on the next launch and (via the
+    // backend's reuse-detection) revoke every session. Regression for the
+    // "keep me signed in → signed out on relaunch" report.
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/auth/login"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(tokens_body("A_NEW", "R_NEW")))
+        .mount(&server)
+        .await;
+
+    let slot = std::sync::Arc::new(std::sync::Mutex::new(Some("R_OLD".to_string())));
+    let auth = AuthManager::new(client(&server), Vault::failing_writes(slot.clone()));
+
+    auth.login("t@x.com", "pw", None, true).await.unwrap();
+    assert!(auth.is_signed_in().await, "the live session must survive in memory");
+    assert_eq!(
+        *slot.lock().unwrap(),
+        None,
+        "the stale on-disk token must be cleared, not left to be replayed (and family-revoked) on next launch",
+    );
+}
+
+#[tokio::test]
 async fn password_change_required_detected_from_real_wire_shape() {
     // The global exception filter DROPS the interceptor's `code` field —
     // the real body identifies itself only by the message.

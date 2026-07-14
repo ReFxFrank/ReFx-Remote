@@ -361,24 +361,39 @@ impl AuthManager {
             .ok_or(PanelError::NotSignedIn)
     }
 
-    /// Persist-then-install a fresh token pair. Vault write happens BEFORE
-    /// the new refresh token is usable anywhere, so a crash can't strand us
-    /// with a rotated-away token on disk.
+    /// Persist-then-install a fresh token pair. The rotated refresh token is
+    /// written to the vault BEFORE it's adopted, so a crash can't strand a
+    /// rotated-away token on disk.
     ///
-    /// If the vault write fails we MUST still adopt the new pair in memory:
-    /// the server has already rotated, so keeping the old refresh token
-    /// "current" arms the reuse-detection trap that revokes every session
-    /// the user has. Worst case of adopting anyway is a signed-out state on
-    /// next launch — annoying, not destructive.
+    /// Credential-store writes fail transiently (locked by AV / another
+    /// process), so retry briefly. If the write ultimately fails we must NOT
+    /// leave the OLD token on disk: the server has already rotated it away, so a
+    /// next-launch resume would replay a now-burned token and trip the backend's
+    /// reuse-detection — revoking every session on every device. Clear the vault
+    /// instead (resume then sees "no session" and the user re-auths cleanly) and
+    /// keep the live session running in memory.
     async fn install(&self, t: TokenResponse) -> Result<(), PanelError> {
         if t.access_token.is_empty() || t.refresh_token.is_empty() {
             return Err(PanelError::Decode("token response missing tokens".into()));
         }
-        if let Err(e) = self.vault.store_refresh_token(&t.refresh_token) {
-            warn!(
-                "vault persist failed; session continues in memory only: {}",
-                e.code()
-            );
+        let mut stored = false;
+        for attempt in 0..3 {
+            match self.vault.store_refresh_token(&t.refresh_token) {
+                Ok(()) => {
+                    stored = true;
+                    break;
+                }
+                Err(e) => {
+                    warn!("vault persist attempt {} failed: {}", attempt + 1, e.code());
+                    if attempt < 2 {
+                        tokio::time::sleep(std::time::Duration::from_millis(120)).await;
+                    }
+                }
+            }
+        }
+        if !stored {
+            warn!("vault persist failed; clearing the stale entry so the next launch re-auths cleanly instead of replaying a burned token");
+            let _ = self.vault.clear();
         }
         *self.tokens.write().await = Some(Tokens {
             access: t.access_token,

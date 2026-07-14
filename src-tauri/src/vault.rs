@@ -4,7 +4,7 @@
 //! token — access tokens live in memory, and nothing here is logged or sent
 //! over IPC.
 
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use keyring::Entry;
 
@@ -19,6 +19,10 @@ enum Backend {
     /// Test-only: every write/clear fails, reads say empty — models a
     /// broken Credential Manager so tests can prove the session survives.
     Broken,
+    /// Test-only: writes fail but the last value survives (a real Credential
+    /// Manager leaves the prior credential intact on a failed write); clear
+    /// empties it. `Arc`-shared so a test can inspect the on-disk state.
+    FailingWrites(Arc<Mutex<Option<String>>>),
 }
 
 pub struct Vault {
@@ -44,6 +48,14 @@ impl Vault {
         }
     }
 
+    /// Test-only: a store whose writes always fail while the last value stays
+    /// readable (like the real credential store on a transient write error).
+    pub fn failing_writes(slot: Arc<Mutex<Option<String>>>) -> Self {
+        Self {
+            backend: Backend::FailingWrites(slot),
+        }
+    }
+
     fn entry() -> Result<Entry, PanelError> {
         Entry::new(SERVICE, REFRESH_KEY).map_err(|e| PanelError::Vault(e.to_string()))
     }
@@ -58,6 +70,10 @@ impl Vault {
                 Ok(())
             }
             Backend::Broken => Err(PanelError::Vault("credential store unavailable".into())),
+            // Write fails, but the previously-stored value is left untouched.
+            Backend::FailingWrites(_) => {
+                Err(PanelError::Vault("credential store unavailable".into()))
+            }
         }
     }
 
@@ -70,6 +86,7 @@ impl Vault {
             },
             Backend::Memory(slot) => Ok(slot.lock().expect("vault lock").clone()),
             Backend::Broken => Ok(None),
+            Backend::FailingWrites(slot) => Ok(slot.lock().expect("vault lock").clone()),
         }
     }
 
@@ -84,6 +101,10 @@ impl Vault {
                 Ok(())
             }
             Backend::Broken => Err(PanelError::Vault("credential store unavailable".into())),
+            Backend::FailingWrites(slot) => {
+                *slot.lock().expect("vault lock") = None;
+                Ok(())
+            }
         }
     }
 }
