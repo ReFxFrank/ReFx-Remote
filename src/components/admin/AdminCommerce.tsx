@@ -440,7 +440,9 @@ function GiftCardDialog({
     if (!matches) return;
     setBusy(true);
     try {
-      const g = await ipc.admin.giftCardCreate(Math.round(num * 100), amount.trim(), note.trim() || undefined);
+      // Pass the independently re-typed value (not `amount`) so the Rust
+      // amount-binding verifies the human's confirmation, not the same number.
+      const g = await ipc.admin.giftCardCreate(Math.round(num * 100), typed.trim(), note.trim() || undefined);
       onDone(g);
     } catch (e) {
       onError(errorMessage(e));

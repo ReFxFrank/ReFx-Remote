@@ -329,21 +329,25 @@ function CreditDialog({
 }) {
   const [mode, setMode] = useState<"grant" | "deduct">("grant");
   const [amount, setAmount] = useState("");
+  const [typed, setTyped] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
   const parsed = Number(amount);
   const valid = amount.trim() !== "" && Number.isFinite(parsed) && parsed > 0;
+  // Independent re-entry so the Rust amount-binding actually verifies a second
+  // human input rather than the same value twice.
+  const matches = valid && typed.trim() === amount.trim();
 
   async function submit() {
-    if (!valid) return;
+    if (!matches) return;
     setBusy(true);
     try {
       const minor = Math.round(parsed * 100) * (mode === "deduct" ? -1 : 1);
       await ipc.admin.userCreditAdjust(
         userId,
         minor,
-        amount.trim(), // confirm_amount — re-verified Rust-side against amountMinor
+        typed.trim(), // confirm_amount — the independently re-typed value, re-verified Rust-side
         mode === "deduct" ? "ADJUSTMENT" : "ADMIN_GRANT",
         note.trim() || undefined,
       );
@@ -395,8 +399,17 @@ function CreditDialog({
 
         <p className="mt-3 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
           This {mode === "deduct" ? "removes" : "adds"} <strong>{valid ? money(Math.round(parsed * 100)) : "—"}</strong>{" "}
-          {mode === "deduct" ? "from" : "to"} the account's store credit. The amount is re-verified before it's applied.
+          {mode === "deduct" ? "from" : "to"} the account's store credit.
         </p>
+
+        <p className="mt-3 text-sm text-muted-foreground">
+          Type <span className="font-mono text-foreground">{amount || "…"}</span> to confirm.
+        </p>
+        <input
+          value={typed}
+          onChange={(e) => setTyped(e.target.value)}
+          className="mt-1 w-full rounded-md border border-white/10 bg-[rgba(7,13,24,0.7)] px-3 py-2 font-mono text-sm outline-none focus:border-primary/60"
+        />
 
         <div className="mt-5 flex justify-end gap-2">
           <button onClick={onClose} className="btn-ghost rounded-md px-3 py-1.5 text-sm">
@@ -404,7 +417,7 @@ function CreditDialog({
           </button>
           <button
             onClick={() => void submit()}
-            disabled={!valid || busy}
+            disabled={!matches || busy}
             className={`${mode === "deduct" ? "btn-danger" : "btn-primary"} rounded-md px-3 py-1.5 text-sm disabled:opacity-50`}
           >
             {busy ? "Applying…" : mode === "deduct" ? "Deduct credit" : "Grant credit"}
