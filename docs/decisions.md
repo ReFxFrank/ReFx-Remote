@@ -43,6 +43,35 @@ Event names to the FE stay as briefed (`console:{id}`, `stats:{id}`, `status:{id
 
 `refx_` keys authenticate REST (via `X-Api-Key`) but the console gateway only verifies access JWTs — an API-key desktop app would have no live console, which is the feature the app lives or dies on (brief §7). Keys remain interesting for a future headless "tray-only monitor mode."
 
+## D-007 (2026-07-13): Staff admin suite — architecture + build approach
+
+Added a **full staff admin surface** (~25 screens, ~90 `admin_*` commands) built
+against the real ReFxHosting backend source (`../ReFxHosting/apps/panel-api`),
+reusing the existing architecture (all I/O in Rust `panel/admin/*.rs`; React
+screens gated on `profile.permissions` via `src/lib/perms.ts`). Decisions:
+
+- **Staff = `permissions.length > 0`** (the server's own test), not `globalRole`.
+  The permission matcher is mirrored byte-for-byte in TS + Rust with shared test
+  vectors; the server stays authoritative (403 backstop), the UI gate only hides
+  dead-end controls (hide, don't disable, anything the caller lacks).
+- **Reuse over re-port**: staff "Manage server" mounts the shipped
+  console/files/backups components with any `serverId` (the `servers.manage`
+  staff override authorizes them), gated on `servers.manage`.
+- **Money doctrine**: `credit_adjust`/`invoice_refund`/`gift_card_create` bind a
+  UI-typed amount to `amountMinor`, re-checked in the Rust command; `mark_paid`
+  and vanity-refund require an explicit confirm. See admin-suite-plan.md.
+- **`PATCH /admin/users/:id` state change deliberately skips the role-rank guard**
+  the `ban`/`suspend` routes enforce (mirrors the web admin); server authoritative.
+- **Build method**: the independent Tier-3 domains (content, settings, db-hosts,
+  products, templates, team) were authored by parallel subagents — each writing
+  its own new module/screen file from the backend source — then integrated and
+  adversarially reviewed. Each tier got the implement → review → verify → fix loop
+  the earlier phases used; the admin-review pass caught a permission-blind staff
+  drawer + a forbidden-default-screen bug, both fixed.
+
+Live verification still needs a **staff/admin login** (the `test@remote.com`
+account is a customer); the suite is built against source-of-truth contracts.
+
 ## D-006 (2026-07-13): Phase 5 native surface + Phase 6 release engineering
 
 **Native surface (Phase 5).** Tray, background crash monitor, `refx://` deep

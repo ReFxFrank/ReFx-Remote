@@ -851,13 +851,6 @@ pub async fn admin_gift_card_set_active(
 // Tier 3: content, settings, database hosts, products, team
 // ═══════════════════════════════════════════════════════════════════════
 
-// NOTE: add `content` to the existing admin `use` list in commands_admin.rs:
-//   use crate::panel::admin::{
-//       billing, catalog, content, nodes, platform, roles, servers as admin_servers, support, users,
-//   };
-// No Serialize list-wrapper structs are needed: all three list endpoints are
-// plain JSON arrays (like coupons/gift-cards), returned as Vec<_> directly.
-
 // ── Content: global alerts (content.read read / content.manage writes) ──
 
 #[tauri::command]
@@ -1060,10 +1053,6 @@ pub async fn admin_incident_delete(state: State<'_, AppState>, id: String) -> Re
     content::incident_delete(&state.auth, &id).await.map_err(Into::into)
 }
 
-// NOTE: also add `settings` to the existing top-of-file import:
-//   use crate::panel::admin::{ ..., settings, ... };
-// No list-wrapper structs are needed (none of these endpoints paginate).
-
 // ── Platform settings (settings.manage) ────────────────────────────────
 
 #[tauri::command]
@@ -1252,11 +1241,6 @@ pub async fn admin_database_host_test(
 ) -> Result<dbhosts::TestResult, IpcError> {
     dbhosts::test(&state.auth, &id).await.map_err(Into::into)
 }
-
-// NOTE: add `products` to the existing `use crate::panel::admin::{...}` import at
-// the top of commands_admin.rs (alongside billing, catalog, nodes, ...).
-// No list-wrapper struct needed: GET /admin/products returns a plain array, so
-// admin_products_list returns Vec<products::Product> directly (like coupons).
 
 // ── Catalog: products, hardware tiers + prices (catalog.read / catalog.manage) ──
 
@@ -1484,13 +1468,6 @@ pub async fn admin_tier_update(
 pub async fn admin_tier_delete(state: State<'_, AppState>, tier_id: String) -> Result<(), IpcError> {
     products::tier_delete(&state.auth, &tier_id).await.map_err(Into::into)
 }
-
-// NOTE: add `team` to the existing `use crate::panel::admin::{...}` import at the
-// top of commands_admin.rs (alongside billing, catalog, nodes, ...).
-// Also add `pub mod team;` to src-tauri/src/panel/admin/mod.rs.
-// The list endpoint is a simple array (not paginated), so no list-wrapper
-// struct is needed — admin_staff_list returns Vec<team::TeamMember> directly,
-// matching admin_coupons_list.
 
 // ── Team (public "Meet the team" page — content.manage) ────────────────
 

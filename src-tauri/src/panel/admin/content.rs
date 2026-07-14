@@ -53,9 +53,10 @@ pub struct AlertBody<'a> {
     pub body: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_active: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    // Serialized even when None so an explicit null clears the date (the editor
+    // always sends the full form; the backend distinguishes null=clear from
+    // absent=keep).
     pub starts_at: Option<&'a str>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub ends_at: Option<&'a str>,
 }
 
@@ -134,13 +135,11 @@ pub struct HomepageAlertBody<'a> {
     pub body: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_active: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    // Serialized even when None so an explicit null clears these (the editor
+    // always sends the full form; the backend treats null=clear, absent=keep).
     pub starts_at: Option<&'a str>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub ends_at: Option<&'a str>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub cta_label: Option<&'a str>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub cta_url: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dismissible: Option<bool>,

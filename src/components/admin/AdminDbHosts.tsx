@@ -191,7 +191,8 @@ function HostDialog({
 }) {
   const isEdit = !!host;
   const [name, setName] = useState(host?.name ?? "");
-  const [engine, setEngine] = useState(host?.engine ?? "mariadb");
+  // Prisma DbEngine enum values are uppercase; lowercase fails @IsEnum server-side.
+  const [engine, setEngine] = useState(host?.engine ?? "MARIADB");
   const [dbHost, setDbHost] = useState(host?.host ?? "");
   const [port, setPort] = useState(host?.port != null ? String(host.port) : "3306");
   const [username, setUsername] = useState(host?.username ?? "");
@@ -262,12 +263,12 @@ function HostDialog({
             <label className="text-sm">
               <span className="text-muted-foreground">Engine</span>
               <select
-                value={engine ?? "mariadb"}
+                value={engine ?? "MARIADB"}
                 onChange={(e) => setEngine(e.target.value)}
                 className="refx-input mt-1 w-full rounded-md px-2 py-1.5 text-sm outline-none"
               >
-                <option value="mariadb">MariaDB</option>
-                <option value="mysql">MySQL</option>
+                <option value="MARIADB">MariaDB</option>
+                <option value="MYSQL">MySQL</option>
               </select>
             </label>
           )}

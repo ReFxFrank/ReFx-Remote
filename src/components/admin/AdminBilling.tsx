@@ -241,7 +241,10 @@ function RefundDialog({
     if (!validAmount || !matches) return;
     setBusy(true);
     try {
-      await ipc.admin.invoiceRefund(invoice.id, Math.round(amountNum * 100), amount.trim());
+      // Pass the independently re-typed value (not `amount`) so the Rust
+      // amount-binding actually verifies the human's confirmation rather than
+      // re-deriving the same number. `matches` already guarantees typed===amount.
+      await ipc.admin.invoiceRefund(invoice.id, Math.round(amountNum * 100), typed.trim());
       onDone();
     } catch (e) {
       onError(errorMessage(e));

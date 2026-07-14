@@ -45,6 +45,29 @@ via `src/lib/perms.ts` (mirror of the backend catalog). Exposed under `ipc.admin
 `AdminRole` = `{ id, key, name, description?, isSystem, permissions: string[], _count?: { users } }`.
 `AdminUser` = `{ id, email, firstName?, lastName?, globalRole?, state?, roleId?, createdAt?, emailVerifiedAt? }`.
 
+**Full admin surface (Tiers 1–3).** Beyond the foundation above, `commands_admin.rs`
+exposes ~90 `admin_*` commands following the identical pattern (server-authorized;
+UI gated on `profile.permissions`; permissive serde; `{data,meta}` for lists).
+Families, by domain module (`panel/admin/*.rs`) and gating permission:
+
+- **servers** (`servers.read`/`.manage`): `admin_servers_list`, `admin_server_{delete,resize,transfer,transfers,voice_get,voice_enable,voice_disable,suspend,unsuspend,reinstall,vanity_strip}`. Per-server management reuses the customer console/files/backups via the `servers.manage` override.
+- **users** (`users.*`): `admin_user_{get,create,set_state,verify_email,delete,purge,send_password_reset,set_password,credit_get,credit_adjust}`, `admin_customers_list`.
+- **nodes/infra** (`nodes.*`,`locations.manage`): `admin_nodes_list`, `admin_node_{get,regions,heartbeats,ping,set_maintenance,delete,restart_agent,update_agent,rotate_bootstrap}`, `admin_locations_list`, `admin_location_{create,update,delete}`, `admin_database_host{s_list,_create,_update,_delete,_test}`, `admin_templates_list`.
+- **support** (`support.read`/`.manage`): `admin_tickets_list`, `admin_ticket_{get,reply,update,assign,close,archive,delete}`, `admin_support_staff`, `admin_canned_responses`.
+- **platform** (`audit.read`,`dashboard.read`,`content.manage`,`settings.manage`): `admin_audit_logs`, `admin_metrics`, `admin_{alerts,homepage_alerts,incidents}_*`, `admin_settings_{email,steam,vanity,referrals}_*`, `admin_staff_*` (public team page).
+- **billing/catalog** (`billing.read`/`.manage`/`.refund`,`payments.manage`,`catalog.*`): `admin_billing_summary`, `admin_invoices_list`, `admin_invoice_{void,mark_paid,refund,delete}`, `admin_orders_list`/`admin_order_delete`, `admin_payments_list`/`admin_payment_gateways`, `admin_growth`, `admin_coupon{s_list,_create,_delete}`, `admin_gift_card{s_list,_create,_set_active}`, `admin_product{s_list,_get,_create,_update,_delete}`, `admin_price_{create,update,delete}`, `admin_tier_{create,update,delete,price_create}`.
+
+**One-time secrets** returned by design (copy-once, never persisted/logged):
+`admin_user_create`/`admin_user_set_password` → `{ password }`;
+`admin_node_rotate_bootstrap` → `{ bootstrapToken }`; gift-card create → its `code`.
+
+**Money-moving commands** additionally require a client-supplied confirmation that
+the Rust command re-verifies before any wire call (so a UI bug can't fire an
+unintended amount): `admin_user_credit_adjust`, `admin_invoice_refund`,
+`admin_gift_card_create` bind a typed `confirmAmount` to the exact `amountMinor`;
+`admin_invoice_mark_paid` and `admin_server_vanity_strip` (refund) require an
+explicit `confirm`. See docs/admin-suite-plan.md §money-moving doctrine.
+
 `ConsoleLine` = `{ line: string, stream: "stdout"|"install", at: number }`.
 `AppSettings` = `{ notifyCrashed, notifyBackOnline, closeToTray, startWithWindows }` (all `boolean`).
 `OpenServerEvent` = `{ id: string, console: boolean }`.
