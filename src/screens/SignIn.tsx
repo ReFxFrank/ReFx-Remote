@@ -20,7 +20,13 @@ export default function SignIn() {
     e.preventDefault();
     if (busy || passkeyOnly) return;
     if (mfa) {
-      if (code.trim()) void verifyMfa(code, recoveryMode ? "recovery" : undefined);
+      const raw = code.trim();
+      if (!raw) return;
+      // Authenticator apps show the code grouped ("057 115"); strip everything
+      // but digits so a spaced/pasted TOTP code still validates. Recovery codes
+      // keep their shape (letters + dashes), just trimmed.
+      const clean = recoveryMode ? raw : raw.replace(/\D/g, "");
+      void verifyMfa(clean, recoveryMode ? "recovery" : undefined);
     } else if (email.trim() && password) {
       void login(email, password, remember);
     }

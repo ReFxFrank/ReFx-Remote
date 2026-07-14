@@ -3,6 +3,11 @@ import { errorMessage, ipc, isIpcError, type Profile } from "../lib/ipc";
 
 type Status = "loading" | "signedOut" | "offline" | "mfa" | "signedIn";
 
+// When the current MFA challenge was issued (login → challenge). The backend's
+// mfaToken lives ~5 min; once it's stale, verify 401s look like a wrong code, so
+// we use this to route the user back to sign-in for a fresh challenge instead.
+let mfaStartedAt = 0;
+
 // Auto-retry timer for the offline/reconnecting state. Module-scoped so it
 // survives store updates and never stacks.
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -69,6 +74,7 @@ export const useAuth = create<AuthStore>((set, get) => ({
     try {
       const result = await ipc.authLogin(email, password, remember);
       if (result.status === "mfa") {
+        mfaStartedAt = Date.now();
         set({ status: "mfa", mfaMethods: result.methods, busy: false });
         return;
       }
@@ -83,10 +89,25 @@ export const useAuth = create<AuthStore>((set, get) => ({
     set({ busy: true, error: null });
     try {
       await ipc.authMfaVerify(code, method);
+      mfaStartedAt = 0;
       await get().init();
       set({ busy: false });
     } catch (e) {
-      set({ busy: false, error: errorMessage(e) });
+      // An aged-out 5-minute challenge 401s exactly like a wrong code. If we've
+      // been on the MFA screen a while, send the user back to re-enter their
+      // password (fresh challenge) with an accurate message — rather than let
+      // them burn codes into the verify rate limit against a dead token.
+      if (mfaStartedAt && Date.now() - mfaStartedAt > 4.5 * 60 * 1000) {
+        mfaStartedAt = 0;
+        set({
+          status: "signedOut",
+          mfaMethods: [],
+          busy: false,
+          error: "Your sign-in timed out — please enter your password again.",
+        });
+      } else {
+        set({ busy: false, error: errorMessage(e) });
+      }
     }
   },
 
