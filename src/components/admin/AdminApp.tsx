@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useAuth } from "../../store/auth";
 import { useNav, type AdminScreen } from "../../store/nav";
 import { hasPermission, type AdminPermission } from "../../lib/perms";
@@ -9,6 +9,7 @@ import AdminUsers from "./AdminUsers";
 import AdminDashboard from "./AdminDashboard";
 import AdminAudit from "./AdminAudit";
 import AdminSupport from "./AdminSupport";
+import AdminNodes from "./AdminNodes";
 
 type NavItem = { screen: AdminScreen; label: string; perm: AdminPermission; ready?: boolean };
 type NavGroup = { group: string; items: NavItem[] };
@@ -25,7 +26,7 @@ const NAV: NavGroup[] = [
   {
     group: "Infrastructure",
     items: [
-      { screen: "nodes", label: "Nodes", perm: "nodes.read" },
+      { screen: "nodes", label: "Nodes", perm: "nodes.read", ready: true },
       { screen: "locations", label: "Locations", perm: "locations.manage" },
       { screen: "database-hosts", label: "Database hosts", perm: "nodes.manage" },
       { screen: "templates", label: "Templates", perm: "catalog.read" },
@@ -76,7 +77,15 @@ export default function AdminApp() {
     [perms],
   );
 
-  const current = groups.flatMap((g) => g.items).find((it) => it.screen === adminScreen);
+  const items = groups.flatMap((g) => g.items);
+  const current = items.find((it) => it.screen === adminScreen);
+
+  // If the active screen isn't one this staffer can see (e.g. the default
+  // "servers" for a billing-only role), jump to their first permitted screen
+  // instead of mounting a component that would dead-end in a 403.
+  useEffect(() => {
+    if (!current && items.length > 0) goAdmin(items[0].screen);
+  }, [current, items, goAdmin]);
 
   return (
     <div className="flex h-screen">
@@ -120,7 +129,13 @@ export default function AdminApp() {
           <span className="text-sm text-muted-foreground">{profile?.email}</span>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <AdminScreenView screen={adminScreen} ready={current?.ready} />
+          {current ? (
+            <AdminScreenView screen={adminScreen} ready={current.ready} />
+          ) : items.length === 0 ? (
+            <div className="flex h-full items-center justify-center p-8 text-center text-sm text-muted-foreground">
+              Your role doesn't have access to any admin sections.
+            </div>
+          ) : null}
         </div>
       </main>
     </div>
@@ -134,6 +149,7 @@ function AdminScreenView({ screen, ready }: { screen: AdminScreen; ready?: boole
   if (screen === "dashboard") return <AdminDashboard />;
   if (screen === "audit") return <AdminAudit />;
   if (screen === "support") return <AdminSupport />;
+  if (screen === "nodes") return <AdminNodes />;
   return (
     <div className="flex h-full items-center justify-center p-8 text-center">
       <div className="max-w-sm">

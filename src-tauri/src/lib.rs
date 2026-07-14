@@ -174,6 +174,20 @@ pub fn run() {
             commands_admin::admin_ticket_delete,
             commands_admin::admin_support_staff,
             commands_admin::admin_canned_responses,
+            commands_admin::admin_nodes_list,
+            commands_admin::admin_node_get,
+            commands_admin::admin_node_regions,
+            commands_admin::admin_node_heartbeats,
+            commands_admin::admin_node_ping,
+            commands_admin::admin_node_set_maintenance,
+            commands_admin::admin_node_delete,
+            commands_admin::admin_node_restart_agent,
+            commands_admin::admin_node_update_agent,
+            commands_admin::admin_node_rotate_bootstrap,
+            commands_admin::admin_locations_list,
+            commands_admin::admin_location_create,
+            commands_admin::admin_location_update,
+            commands_admin::admin_location_delete,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

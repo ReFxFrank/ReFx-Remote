@@ -36,8 +36,8 @@ export default function Roles() {
         <div>
           <h2 className="text-lg font-semibold tracking-tight">Roles</h2>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            RBAC roles control what each staff member can do. System roles can't be renamed or
-            deleted, but their permissions are editable (Owner always keeps full access).
+            RBAC roles control what each staff member can do. System roles can't be deleted, but
+            their name and permissions are editable (Owner always keeps full access).
           </p>
         </div>
         <button onClick={() => setEditing("new")} className="btn-primary rounded-md px-3 py-1.5 text-sm">

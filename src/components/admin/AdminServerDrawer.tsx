@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { ipc, errorMessage, type AdminServer, type PowerSignal } from "../../lib/ipc";
+import { useAuth } from "../../store/auth";
+import { hasPermission } from "../../lib/perms";
 import { stateDot, stateLabel } from "../../lib/format";
 import PowerControls from "../PowerControls";
 import Console from "../Console";
@@ -26,6 +28,11 @@ export default function AdminServerDrawer({
   server: AdminServer;
   onClose: () => void;
 }) {
+  const perms = useAuth((s) => s.profile?.permissions) ?? [];
+  // Staff can act on any server only with servers.manage; a servers.read-only
+  // staffer (e.g. the support role) gets a view-only drawer instead of enabled
+  // controls that would all dead-end in 403.
+  const canManage = hasPermission(perms, "servers.manage");
   const [tab, setTab] = useState<Tab>("console");
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +84,7 @@ export default function AdminServerDrawer({
             state={server.state}
             serverName={server.name}
             busy={!!pending}
-            canPower={true}
+            canPower={canManage}
             onPower={(s) => void power(s)}
           />
           {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
@@ -101,23 +108,23 @@ export default function AdminServerDrawer({
 
         <div className="flex min-h-0 flex-1 flex-col p-6">
           <div className={`flex min-h-0 flex-1 flex-col ${tab === "console" ? "" : "hidden"}`}>
-            <Console key={server.id} serverId={server.id} canCommand={true} />
+            <Console key={server.id} serverId={server.id} canCommand={canManage} />
           </div>
           <div className={`flex min-h-0 flex-1 flex-col ${tab === "files" ? "" : "hidden"}`}>
-            <Files key={server.id} serverId={server.id} canWrite={true} />
+            <Files key={server.id} serverId={server.id} canWrite={canManage} />
           </div>
           {tab === "backups" && (
             <Backups
               key={server.id}
               serverId={server.id}
               serverName={server.name}
-              canCreate={true}
-              canRestore={true}
-              canDelete={true}
+              canCreate={canManage}
+              canRestore={canManage}
+              canDelete={canManage}
             />
           )}
-          {tab === "startup" && <Startup key={server.id} serverId={server.id} canEdit={true} />}
-          {tab === "schedules" && <Schedules key={server.id} serverId={server.id} canManage={true} />}
+          {tab === "startup" && <Startup key={server.id} serverId={server.id} canEdit={canManage} />}
+          {tab === "schedules" && <Schedules key={server.id} serverId={server.id} canManage={canManage} />}
           {tab === "databases" && <Databases key={server.id} serverId={server.id} />}
         </div>
       </div>

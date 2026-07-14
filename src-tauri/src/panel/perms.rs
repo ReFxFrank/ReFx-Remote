@@ -1,9 +1,15 @@
 //! Admin RBAC permission matcher — a faithful mirror of the backend
-//! `apps/panel-api/src/common/permissions.ts` `hasPermission`, and of the
-//! frontend `src/lib/perms.ts`. The frontend gates the admin UI; this Rust copy
-//! is the defense-in-depth guard on money-moving `admin_*` commands, so a UI bug
-//! alone can never fire a refund/credit. Keep all three in lock-step — the test
-//! vectors below are shared verbatim with the TS tests.
+//! `apps/panel-api/src/common/permissions.ts` `hasPermission` and the frontend
+//! `src/lib/perms.ts`. Keep all three in lock-step; the test vectors below are
+//! shared verbatim with the TS tests to prove parity.
+//!
+//! Authority for admin permissions is the SERVER (every `admin_*` route returns
+//! 403 → `IpcError::Forbidden`); the frontend `perms.ts` copy gates the UI to
+//! avoid dead-end 403s. The client-side guard against a UI bug firing an
+//! unintended money action is the amount-binding check inside
+//! `admin_user_credit_adjust` (`commands_admin.rs`), not a permission re-check —
+//! this Rust matcher exists for parity verification and is available should a
+//! command ever need a local permission gate.
 
 pub const WILDCARD: &str = "*";
 

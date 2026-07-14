@@ -23,6 +23,9 @@ pub struct AuditLog {
     pub id: String,
     #[serde(default)]
     pub actor_id: Option<String>,
+    /// Forward-compatible: the backend `listAuditLogs` query does not currently
+    /// `include` the actor relation, so this is usually absent and the UI falls
+    /// back to `actor_id`. Populates automatically if the backend adds the join.
     #[serde(default)]
     pub actor: Option<AuditActor>,
     #[serde(default)]

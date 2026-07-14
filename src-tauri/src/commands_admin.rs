@@ -9,7 +9,7 @@
 use serde::Serialize;
 use tauri::State;
 
-use crate::panel::admin::{platform, roles, servers as admin_servers, support, users};
+use crate::panel::admin::{nodes, platform, roles, servers as admin_servers, support, users};
 use crate::panel::error::IpcError;
 use crate::panel::models::PageMeta;
 use crate::state::AppState;
@@ -517,4 +517,120 @@ pub async fn admin_canned_responses(
     state: State<'_, AppState>,
 ) -> Result<Vec<support::CannedResponse>, IpcError> {
     support::canned_list(&state.auth).await.map_err(Into::into)
+}
+
+// ── Infrastructure: nodes + locations ──────────────────────────────────
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NodeList {
+    pub nodes: Vec<nodes::Node>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub meta: Option<PageMeta>,
+}
+
+#[tauri::command]
+pub async fn admin_nodes_list(
+    state: State<'_, AppState>,
+    page: Option<u32>,
+    page_size: Option<u32>,
+) -> Result<NodeList, IpcError> {
+    let page = nodes::list(&state.auth, page.unwrap_or(1), page_size.unwrap_or(100)).await?;
+    Ok(NodeList { nodes: page.data, meta: page.meta })
+}
+
+#[tauri::command]
+pub async fn admin_node_get(state: State<'_, AppState>, id: String) -> Result<nodes::Node, IpcError> {
+    nodes::get(&state.auth, &id).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_node_regions(state: State<'_, AppState>) -> Result<Vec<nodes::Region>, IpcError> {
+    nodes::regions(&state.auth).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_node_heartbeats(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<Vec<nodes::Heartbeat>, IpcError> {
+    nodes::heartbeats(&state.auth, &id).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_node_ping(state: State<'_, AppState>, id: String) -> Result<nodes::Ping, IpcError> {
+    nodes::ping(&state.auth, &id).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_node_set_maintenance(
+    state: State<'_, AppState>,
+    id: String,
+    maintenance: bool,
+) -> Result<nodes::Node, IpcError> {
+    nodes::set_maintenance(&state.auth, &id, maintenance).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_node_delete(state: State<'_, AppState>, id: String) -> Result<(), IpcError> {
+    nodes::delete(&state.auth, &id).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_node_restart_agent(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<serde_json::Value, IpcError> {
+    nodes::restart_agent(&state.auth, &id).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_node_update_agent(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<serde_json::Value, IpcError> {
+    nodes::update_agent(&state.auth, &id).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_node_rotate_bootstrap(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<nodes::BootstrapToken, IpcError> {
+    nodes::rotate_bootstrap(&state.auth, &id).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_locations_list(state: State<'_, AppState>) -> Result<Vec<nodes::Region>, IpcError> {
+    nodes::locations(&state.auth).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_location_create(
+    state: State<'_, AppState>,
+    code: String,
+    name: String,
+    country: Option<String>,
+) -> Result<nodes::Region, IpcError> {
+    nodes::location_create(&state.auth, &code, &name, country.as_deref())
+        .await
+        .map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_location_update(
+    state: State<'_, AppState>,
+    id: String,
+    code: Option<String>,
+    name: Option<String>,
+    country: Option<String>,
+) -> Result<nodes::Region, IpcError> {
+    nodes::location_update(&state.auth, &id, code.as_deref(), name.as_deref(), country.as_deref())
+        .await
+        .map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_location_delete(state: State<'_, AppState>, id: String) -> Result<(), IpcError> {
+    nodes::location_delete(&state.auth, &id).await.map_err(Into::into)
 }

@@ -335,6 +335,29 @@ export type TicketDetail = {
 };
 export type TicketList = { tickets: Ticket[]; meta?: PageMeta };
 export type CannedResponse = { id: string; title?: string | null; body?: string | null; tags: string[] };
+export type NodeRegion = { id: string; code?: string | null; name?: string | null; country?: string | null };
+export type NodeHeartbeat = {
+  recordedAt?: string | null;
+  cpuPct?: number | null;
+  memUsedMb?: number | null;
+  diskUsedMb?: number | null;
+};
+export type AdminNode = {
+  id: string;
+  name?: string | null;
+  fqdn?: string | null;
+  region?: NodeRegion | null;
+  latestHeartbeat?: NodeHeartbeat | null;
+  servers?: number | null;
+  maintenance?: boolean | null;
+  cpuCores?: number | null;
+  memoryMb?: number | null;
+  diskMb?: number | null;
+  provider?: string | null;
+};
+export type NodeList = { nodes: AdminNode[]; meta?: PageMeta };
+export type NodePing = { ms?: number | null; reachable: boolean; heartbeatAgeMs?: number | null };
+export type NodeBootstrapToken = { bootstrapToken: string; expiresAt?: string | null };
 
 export const ipc = {
   appInfo: () => invoke<AppInfo>("app_info"),
@@ -506,6 +529,26 @@ export const ipc = {
     ticketDelete: (id: string) => invoke<void>("admin_ticket_delete", { id }),
     supportStaff: () => invoke<SupportPerson[]>("admin_support_staff"),
     cannedResponses: () => invoke<CannedResponse[]>("admin_canned_responses"),
+
+    nodesList: (opts?: { page?: number; pageSize?: number }) =>
+      invoke<NodeList>("admin_nodes_list", { ...opts }),
+    nodeGet: (id: string) => invoke<AdminNode>("admin_node_get", { id }),
+    nodeRegions: () => invoke<NodeRegion[]>("admin_node_regions"),
+    nodeHeartbeats: (id: string) => invoke<NodeHeartbeat[]>("admin_node_heartbeats", { id }),
+    nodePing: (id: string) => invoke<NodePing>("admin_node_ping", { id }),
+    nodeSetMaintenance: (id: string, maintenance: boolean) =>
+      invoke<AdminNode>("admin_node_set_maintenance", { id, maintenance }),
+    nodeDelete: (id: string) => invoke<void>("admin_node_delete", { id }),
+    nodeRestartAgent: (id: string) => invoke<unknown>("admin_node_restart_agent", { id }),
+    nodeUpdateAgent: (id: string) => invoke<unknown>("admin_node_update_agent", { id }),
+    nodeRotateBootstrap: (id: string) =>
+      invoke<NodeBootstrapToken>("admin_node_rotate_bootstrap", { id }),
+    locationsList: () => invoke<NodeRegion[]>("admin_locations_list"),
+    locationCreate: (code: string, name: string, country?: string) =>
+      invoke<NodeRegion>("admin_location_create", { code, name, country }),
+    locationUpdate: (id: string, patch: { code?: string; name?: string; country?: string }) =>
+      invoke<NodeRegion>("admin_location_update", { id, ...patch }),
+    locationDelete: (id: string) => invoke<void>("admin_location_delete", { id }),
   },
 };
 
