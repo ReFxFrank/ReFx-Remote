@@ -198,6 +198,13 @@ pub fn run() {
             commands_admin::admin_order_delete,
             commands_admin::admin_payments_list,
             commands_admin::admin_payment_gateways,
+            commands_admin::admin_growth,
+            commands_admin::admin_coupons_list,
+            commands_admin::admin_coupon_create,
+            commands_admin::admin_coupon_delete,
+            commands_admin::admin_gift_cards_list,
+            commands_admin::admin_gift_card_create,
+            commands_admin::admin_gift_card_set_active,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -8,6 +8,7 @@
 //! and money-moving commands re-check `panel::perms` in Rust as defense-in-depth.
 
 pub mod billing;
+pub mod catalog;
 pub mod nodes;
 pub mod platform;
 pub mod roles;

@@ -11,6 +11,7 @@ import AdminAudit from "./AdminAudit";
 import AdminSupport from "./AdminSupport";
 import AdminNodes from "./AdminNodes";
 import AdminBilling from "./AdminBilling";
+import { AdminGrowth, AdminCoupons, AdminGiftCards } from "./AdminCommerce";
 
 type NavItem = { screen: AdminScreen; label: string; perm: AdminPermission; ready?: boolean };
 type NavGroup = { group: string; items: NavItem[] };
@@ -45,9 +46,9 @@ const NAV: NavGroup[] = [
     items: [
       { screen: "invoices", label: "Billing", perm: "billing.read", ready: true },
       { screen: "payments", label: "Payments", perm: "payments.manage", ready: true },
-      { screen: "growth", label: "Growth", perm: "billing.read" },
-      { screen: "coupons", label: "Coupons", perm: "catalog.manage" },
-      { screen: "gift-cards", label: "Gift cards", perm: "catalog.manage" },
+      { screen: "growth", label: "Growth", perm: "billing.read", ready: true },
+      { screen: "coupons", label: "Coupons", perm: "billing.manage", ready: true },
+      { screen: "gift-cards", label: "Gift cards", perm: "billing.manage", ready: true },
       { screen: "products", label: "Products", perm: "catalog.read" },
     ],
   },
@@ -151,6 +152,9 @@ function AdminScreenView({ screen, ready }: { screen: AdminScreen; ready?: boole
   if (screen === "support") return <AdminSupport />;
   if (screen === "nodes") return <AdminNodes />;
   if (screen === "invoices" || screen === "payments") return <AdminBilling />;
+  if (screen === "growth") return <AdminGrowth />;
+  if (screen === "coupons") return <AdminCoupons />;
+  if (screen === "gift-cards") return <AdminGiftCards />;
   return (
     <div className="flex h-full items-center justify-center p-8 text-center">
       <div className="max-w-sm">

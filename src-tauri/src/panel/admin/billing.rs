@@ -187,3 +187,9 @@ pub async fn gateways(auth: &AuthManager) -> Result<serde_json::Value, PanelErro
     auth.authed_json::<serde_json::Value, ()>(Method::GET, "/admin/payments/gateways", None)
         .await
 }
+
+/// `GET /admin/growth?days=N` — acquisition report (read-only).
+pub async fn growth(auth: &AuthManager, days: u32) -> Result<serde_json::Value, PanelError> {
+    auth.authed_json::<serde_json::Value, ()>(Method::GET, &format!("/admin/growth?days={days}"), None)
+        .await
+}

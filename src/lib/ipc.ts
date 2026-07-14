@@ -399,6 +399,35 @@ export type Payment = {
 };
 export type PaymentList = { payments: Payment[]; meta?: PageMeta };
 export type RefundResult = { refunded: boolean; amountMinor?: number | null; full?: boolean | null };
+export type Coupon = {
+  id: string;
+  code?: string | null;
+  description?: string | null;
+  kind?: string | null;
+  value?: number | null;
+  currency?: string | null;
+  maxRedemptions?: number | null;
+  maxPerUser?: number | null;
+  timesRedeemed?: number | null;
+  expiresAt?: string | null;
+};
+export type GiftCard = {
+  id: string;
+  code?: string | null;
+  balanceMinor?: number | null;
+  initialBalanceMinor?: number | null;
+  currency?: string | null;
+  note?: string | null;
+  expiresAt?: string | null;
+  isActive?: boolean | null;
+};
+export type GrowthReport = {
+  days: number;
+  totals?: { signups: number; payers: number; revenueMinor: number };
+  channels?: { channel: string; signups: number; payers: number; revenueMinor: number }[];
+  landings?: { landing: string; signups: number }[];
+  referral?: { signups: number; converted: number; creditIssuedMinor: number };
+};
 
 export const ipc = {
   appInfo: () => invoke<AppInfo>("app_info"),
@@ -608,6 +637,24 @@ export const ipc = {
     paymentsList: (opts?: { page?: number; pageSize?: number }) =>
       invoke<PaymentList>("admin_payments_list", { ...opts }),
     paymentGateways: () => invoke<unknown>("admin_payment_gateways"),
+    growth: (days?: number) => invoke<GrowthReport>("admin_growth", { days }),
+
+    couponsList: () => invoke<Coupon[]>("admin_coupons_list"),
+    couponCreate: (input: {
+      code: string;
+      kind: "PERCENT" | "FIXED";
+      value: number;
+      description?: string;
+      maxRedemptions?: number;
+      expiresAt?: string;
+    }) => invoke<Coupon>("admin_coupon_create", { ...input }),
+    couponDelete: (id: string) => invoke<void>("admin_coupon_delete", { id }),
+    giftCardsList: () => invoke<GiftCard[]>("admin_gift_cards_list"),
+    /** balanceMinor bound to the typed confirmAmount Rust-side (stored value). */
+    giftCardCreate: (balanceMinor: number, confirmAmount: string, note?: string, expiresAt?: string) =>
+      invoke<GiftCard>("admin_gift_card_create", { balanceMinor, confirmAmount, note, expiresAt }),
+    giftCardSetActive: (id: string, isActive: boolean) =>
+      invoke<GiftCard>("admin_gift_card_set_active", { id, isActive }),
   },
 };
 

@@ -9,7 +9,9 @@
 use serde::Serialize;
 use tauri::State;
 
-use crate::panel::admin::{billing, nodes, platform, roles, servers as admin_servers, support, users};
+use crate::panel::admin::{
+    billing, catalog, nodes, platform, roles, servers as admin_servers, support, users,
+};
 use crate::panel::error::IpcError;
 use crate::panel::models::PageMeta;
 use crate::state::AppState;
@@ -762,4 +764,84 @@ pub async fn admin_payments_list(
 #[tauri::command]
 pub async fn admin_payment_gateways(state: State<'_, AppState>) -> Result<serde_json::Value, IpcError> {
     billing::gateways(&state.auth).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_growth(
+    state: State<'_, AppState>,
+    days: Option<u32>,
+) -> Result<serde_json::Value, IpcError> {
+    billing::growth(&state.auth, days.unwrap_or(30).clamp(1, 3650)).await.map_err(Into::into)
+}
+
+// ── Catalog: coupons + gift cards (billing.manage) ─────────────────────
+
+#[tauri::command]
+pub async fn admin_coupons_list(state: State<'_, AppState>) -> Result<Vec<catalog::Coupon>, IpcError> {
+    catalog::coupons(&state.auth).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_coupon_create(
+    state: State<'_, AppState>,
+    code: String,
+    kind: String,
+    value: f64,
+    description: Option<String>,
+    max_redemptions: Option<i64>,
+    expires_at: Option<String>,
+) -> Result<catalog::Coupon, IpcError> {
+    let body = catalog::CouponBody {
+        code: Some(&code),
+        kind: Some(&kind),
+        value: Some(value),
+        description: description.as_deref(),
+        max_redemptions,
+        expires_at: expires_at.as_deref(),
+    };
+    catalog::coupon_create(&state.auth, &body).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_coupon_delete(state: State<'_, AppState>, id: String) -> Result<(), IpcError> {
+    catalog::coupon_delete(&state.auth, &id).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_gift_cards_list(state: State<'_, AppState>) -> Result<Vec<catalog::GiftCard>, IpcError> {
+    catalog::gift_cards(&state.auth).await.map_err(Into::into)
+}
+
+/// Issue a gift card — creates stored value (money-adjacent). The UI-typed
+/// amount must bind to `balance_minor`, so a UI bug can't issue the wrong value.
+#[tauri::command]
+pub async fn admin_gift_card_create(
+    state: State<'_, AppState>,
+    balance_minor: i64,
+    confirm_amount: String,
+    note: Option<String>,
+    expires_at: Option<String>,
+) -> Result<catalog::GiftCard, IpcError> {
+    if balance_minor <= 0 {
+        return Err(validation("Balance must be positive."));
+    }
+    let typed: f64 = confirm_amount
+        .trim()
+        .parse()
+        .map_err(|_| validation("Type the amount to confirm."))?;
+    if (typed * 100.0).round() as i64 != balance_minor {
+        return Err(validation("The typed amount doesn't match — no gift card was issued."));
+    }
+    let body = catalog::GiftCardBody { balance_minor, note: note.as_deref(), expires_at: expires_at.as_deref() };
+    catalog::gift_card_create(&state.auth, &body).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_gift_card_set_active(
+    state: State<'_, AppState>,
+    id: String,
+    is_active: bool,
+) -> Result<catalog::GiftCard, IpcError> {
+    let body = catalog::GiftCardUpdate { is_active: Some(is_active), ..Default::default() };
+    catalog::gift_card_update(&state.auth, &id, &body).await.map_err(Into::into)
 }
