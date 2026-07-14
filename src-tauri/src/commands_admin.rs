@@ -21,6 +21,31 @@ fn validation(msg: impl Into<String>) -> IpcError {
     IpcError { code: "VALIDATION", message: msg.into(), mfa_methods: None }
 }
 
+/// Defense-in-depth money guard shared by every fund-moving admin command
+/// (credit adjust, invoice refund, gift-card issue). `expected_minor` is the
+/// positive magnitude the wire request will move; `confirm_amount` is the
+/// major-unit value the staffer independently typed. The command only proceeds
+/// if the two bind exactly, so a UI bug (or a stray non-UI caller) can never
+/// fire an unintended amount — a misplaced decimal ("50" for a $5.00 charge)
+/// is rejected. `reject` customises the mismatch message per action.
+fn verify_typed_amount(
+    expected_minor: i64,
+    confirm_amount: &str,
+    reject: &str,
+) -> Result<(), IpcError> {
+    if expected_minor <= 0 {
+        return Err(validation("Amount must be positive."));
+    }
+    let typed: f64 = confirm_amount
+        .trim()
+        .parse()
+        .map_err(|_| validation("Type the amount to confirm."))?;
+    if !typed.is_finite() || (typed * 100.0).round() as i64 != expected_minor {
+        return Err(validation(reject));
+    }
+    Ok(())
+}
+
 // ── Roles / RBAC (roles.manage) ────────────────────────────────────────
 
 #[tauri::command]
@@ -210,22 +235,15 @@ pub async fn admin_user_credit_adjust(
     note: Option<String>,
     confirm_amount: String,
 ) -> Result<users::CreditBalance, IpcError> {
-    let validation = |m: &str| IpcError {
-        code: "VALIDATION",
-        message: m.to_string(),
-        mfa_methods: None,
-    };
     if amount_minor == 0 {
         return Err(validation("Amount can't be zero."));
     }
-    let typed: f64 = confirm_amount
-        .trim()
-        .parse()
-        .map_err(|_| validation("Type the amount to confirm."))?;
-    let typed_minor = (typed * 100.0).round() as i64;
-    if typed_minor != amount_minor.abs() {
-        return Err(validation("The typed amount doesn't match — nothing was charged."));
-    }
+    // Bind the typed confirmation to the magnitude (credit can be +grant/-deduct).
+    verify_typed_amount(
+        amount_minor.abs(),
+        &confirm_amount,
+        "The typed amount doesn't match — nothing was charged.",
+    )?;
     users::credit_adjust(&state.auth, &id, amount_minor, reason.as_deref(), note.as_deref())
         .await
         .map_err(Into::into)
@@ -703,16 +721,11 @@ pub async fn admin_invoice_refund(
     amount_minor: i64,
     confirm_amount: String,
 ) -> Result<billing::RefundResult, IpcError> {
-    if amount_minor <= 0 {
-        return Err(validation("Refund amount must be positive."));
-    }
-    let typed: f64 = confirm_amount
-        .trim()
-        .parse()
-        .map_err(|_| validation("Type the amount to confirm."))?;
-    if (typed * 100.0).round() as i64 != amount_minor {
-        return Err(validation("The typed amount doesn't match — nothing was refunded."));
-    }
+    verify_typed_amount(
+        amount_minor,
+        &confirm_amount,
+        "The typed amount doesn't match — nothing was refunded.",
+    )?;
     billing::invoice_refund(&state.auth, &id, amount_minor).await.map_err(Into::into)
 }
 
@@ -823,16 +836,11 @@ pub async fn admin_gift_card_create(
     note: Option<String>,
     expires_at: Option<String>,
 ) -> Result<catalog::GiftCard, IpcError> {
-    if balance_minor <= 0 {
-        return Err(validation("Balance must be positive."));
-    }
-    let typed: f64 = confirm_amount
-        .trim()
-        .parse()
-        .map_err(|_| validation("Type the amount to confirm."))?;
-    if (typed * 100.0).round() as i64 != balance_minor {
-        return Err(validation("The typed amount doesn't match — no gift card was issued."));
-    }
+    verify_typed_amount(
+        balance_minor,
+        &confirm_amount,
+        "The typed amount doesn't match — no gift card was issued.",
+    )?;
     let body = catalog::GiftCardBody { balance_minor, note: note.as_deref(), expires_at: expires_at.as_deref() };
     catalog::gift_card_create(&state.auth, &body).await.map_err(Into::into)
 }
@@ -1545,4 +1553,53 @@ pub async fn admin_template_get(
     id: String,
 ) -> Result<templates::GameTemplate, IpcError> {
     templates::get(&state.auth, &id).await.map_err(Into::into)
+}
+
+#[cfg(test)]
+mod money_guard_tests {
+    use super::verify_typed_amount;
+
+    // Exact match, in the two ways the UI can send a whole-dollar amount.
+    #[test]
+    fn accepts_matching_amount() {
+        assert!(verify_typed_amount(500, "5.00", "x").is_ok());
+        assert!(verify_typed_amount(500, "5", "x").is_ok());
+        assert!(verify_typed_amount(1999, "19.99", "x").is_ok());
+        assert!(verify_typed_amount(1, "0.01", "x").is_ok());
+        assert!(verify_typed_amount(500, " 5.00 ", "x").is_ok()); // trims whitespace
+    }
+
+    // The core protection: a mismatched or misplaced-decimal confirmation is
+    // rejected BEFORE any wire call, with the VALIDATION code the FE branches on.
+    #[test]
+    fn rejects_mismatch_and_misplaced_decimal() {
+        for typed in ["4.99", "50", "0.50", "500", "5.001... "] {
+            let e = verify_typed_amount(500, typed.trim(), "no").unwrap_err();
+            assert_eq!(e.code, "VALIDATION", "should reject {typed:?}");
+        }
+    }
+
+    #[test]
+    fn rejects_non_numeric_and_nonfinite() {
+        for typed in ["", "abc", "5.0.0", "NaN", "inf", "-", "$5"] {
+            assert!(verify_typed_amount(500, typed, "no").is_err(), "should reject {typed:?}");
+        }
+    }
+
+    #[test]
+    fn rejects_nonpositive_expected() {
+        // Zero/negative magnitudes never confirm (guards the "amount must be positive" path).
+        assert!(verify_typed_amount(0, "0", "no").is_err());
+        assert!(verify_typed_amount(-500, "-5", "no").is_err());
+        assert!(verify_typed_amount(-500, "5", "no").is_err());
+    }
+
+    // Rounding: half-cent typing rounds to the same integer cents and matches;
+    // anything that rounds to a different cent value is rejected.
+    #[test]
+    fn rounds_to_cents() {
+        assert!(verify_typed_amount(500, "5.004", "x").is_ok()); // -> 500
+        assert!(verify_typed_amount(500, "4.996", "x").is_ok()); // -> 500
+        assert!(verify_typed_amount(500, "5.01", "no").is_err()); // -> 501
+    }
 }
