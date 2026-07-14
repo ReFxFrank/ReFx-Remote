@@ -175,6 +175,62 @@ export type AdminUser = {
   emailVerifiedAt?: string | null;
 };
 export type AdminUserList = { users: AdminUser[]; meta?: PageMeta };
+export type AdminUserDetail = AdminUser & {
+  emailVerifiedAt?: string | null;
+  totpEnabledAt?: string | null;
+  creditBalanceMinor?: number | null;
+  phone?: string | null;
+  country?: string | null;
+  ownedServers: { id: string; shortId?: string | null; name?: string | null; state?: string | null; node?: unknown }[];
+  subscriptions: {
+    id: string;
+    state?: string | null;
+    interval?: string | null;
+    currentPeriodEnd?: string | null;
+    cancelAtPeriodEnd?: boolean | null;
+    gateway?: string | null;
+    product?: unknown;
+  }[];
+  invoices: {
+    id: string;
+    number?: string | null;
+    state?: string | null;
+    currency?: string | null;
+    totalMinor?: number | null;
+    amountPaidMinor?: number | null;
+    createdAt?: string | null;
+    paidAt?: string | null;
+  }[];
+  paymentMethods: {
+    id: string;
+    gateway?: string | null;
+    brand?: string | null;
+    last4?: string | null;
+    isDefault?: boolean | null;
+  }[];
+};
+export type OneTimeSecret = { id?: string | null; email?: string | null; password: string };
+export type CreditTx = {
+  id: string;
+  amountMinor?: number | null;
+  reason?: string | null;
+  note?: string | null;
+  createdAt?: string | null;
+};
+export type CreditLedger = { balanceMinor: number; transactions: CreditTx[] };
+export type AdminCustomer = {
+  id: string;
+  email: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  state?: string | null;
+  globalRole?: string | null;
+  createdAt?: string | null;
+  activeServices?: number | null;
+  servers?: number | null;
+  lifetimeSpendMinor?: number | null;
+};
+export type AdminCustomerList = { customers: AdminCustomer[]; meta?: PageMeta };
 export type AdminServer = {
   id: string;
   name: string;
@@ -293,6 +349,36 @@ export const ipc = {
     }) => invoke<AdminUserList>("admin_users_list", { ...opts }),
     userSetRole: (userId: string, role: string | null, roleId: string | null) =>
       invoke<AdminUser>("admin_user_set_role", { userId, role, roleId }),
+    userGet: (id: string) => invoke<AdminUserDetail>("admin_user_get", { id }),
+    userCreate: (input: {
+      email: string;
+      password?: string;
+      firstName?: string;
+      lastName?: string;
+      role?: string;
+      emailVerified?: boolean;
+    }) => invoke<OneTimeSecret>("admin_user_create", { ...input }),
+    userSetState: (id: string, accountState: "ACTIVE" | "SUSPENDED" | "BANNED") =>
+      invoke<AdminUser>("admin_user_set_state", { id, accountState }),
+    userVerifyEmail: (id: string) => invoke<AdminUser>("admin_user_verify_email", { id }),
+    userDelete: (id: string) => invoke<void>("admin_user_delete", { id }),
+    userPurge: (id: string) => invoke<void>("admin_user_purge", { id }),
+    userSendPasswordReset: (id: string) =>
+      invoke<unknown>("admin_user_send_password_reset", { id }),
+    userSetPassword: (id: string, password?: string) =>
+      invoke<OneTimeSecret>("admin_user_set_password", { id, password }),
+    userCreditGet: (id: string) => invoke<CreditLedger>("admin_user_credit_get", { id }),
+    /** amountMinor is signed (negative = deduct); confirmAmount is the major-unit
+     *  string the user typed and must match, enforced Rust-side. */
+    userCreditAdjust: (
+      id: string,
+      amountMinor: number,
+      confirmAmount: string,
+      reason?: string,
+      note?: string,
+    ) => invoke<{ balanceMinor: number }>("admin_user_credit_adjust", { id, amountMinor, confirmAmount, reason, note }),
+    customersList: (opts?: { page?: number; pageSize?: number; q?: string }) =>
+      invoke<AdminCustomerList>("admin_customers_list", { ...opts }),
 
     serversList: (opts?: { page?: number; pageSize?: number; q?: string }) =>
       invoke<AdminServerList>("admin_servers_list", { ...opts }),

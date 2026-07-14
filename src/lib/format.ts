@@ -54,6 +54,19 @@ export function uptime(ms: number | null): string | null {
   return `${m}m`;
 }
 
+/** Minor-unit integer (cents) → localized currency. Assumes 2-decimal minor
+ *  units (USD/EUR/etc.); falls back to a plain "$x.xx" on an unknown code. */
+export function money(minor: number | null | undefined, currency?: string | null): string {
+  if (minor == null) return "—";
+  const major = minor / 100;
+  const code = (currency || "USD").toUpperCase();
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency: code }).format(major);
+  } catch {
+    return `$${major.toFixed(2)}`;
+  }
+}
+
 export function bytesRate(b: number): string {
   if (b >= 1024 * 1024) return `${(b / 1024 / 1024).toFixed(1)} MB/s`;
   if (b >= 1024) return `${(b / 1024).toFixed(0)} KB/s`;

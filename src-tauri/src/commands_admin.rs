@@ -108,6 +108,142 @@ pub async fn admin_user_set_role(
         .map_err(Into::into)
 }
 
+#[tauri::command]
+pub async fn admin_user_get(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<users::UserDetail, IpcError> {
+    users::get(&state.auth, &id).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_user_create(
+    state: State<'_, AppState>,
+    email: String,
+    password: Option<String>,
+    first_name: Option<String>,
+    last_name: Option<String>,
+    role: Option<String>,
+    email_verified: Option<bool>,
+) -> Result<users::OneTimeSecret, IpcError> {
+    users::create(
+        &state.auth,
+        &email,
+        password.as_deref(),
+        first_name.as_deref(),
+        last_name.as_deref(),
+        role.as_deref(),
+        email_verified.unwrap_or(true),
+    )
+    .await
+    .map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_user_set_state(
+    state: State<'_, AppState>,
+    id: String,
+    account_state: String,
+) -> Result<users::AdminUser, IpcError> {
+    users::set_state(&state.auth, &id, &account_state).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_user_verify_email(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<users::AdminUser, IpcError> {
+    users::verify_email(&state.auth, &id).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_user_delete(state: State<'_, AppState>, id: String) -> Result<(), IpcError> {
+    users::delete(&state.auth, &id).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_user_purge(state: State<'_, AppState>, id: String) -> Result<(), IpcError> {
+    users::purge(&state.auth, &id).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_user_send_password_reset(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<serde_json::Value, IpcError> {
+    users::send_password_reset(&state.auth, &id).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_user_set_password(
+    state: State<'_, AppState>,
+    id: String,
+    password: Option<String>,
+) -> Result<users::OneTimeSecret, IpcError> {
+    users::set_password(&state.auth, &id, password.as_deref()).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn admin_user_credit_get(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<users::CreditLedger, IpcError> {
+    users::credit_get(&state.auth, &id).await.map_err(Into::into)
+}
+
+/// Grant/deduct store credit — MONEY. Defense-in-depth: the UI collects the
+/// amount the staffer typed as `confirm_amount` (major units); we require it to
+/// match `amount_minor` exactly, so a UI bug can't fire an unintended amount.
+#[tauri::command]
+pub async fn admin_user_credit_adjust(
+    state: State<'_, AppState>,
+    id: String,
+    amount_minor: i64,
+    reason: Option<String>,
+    note: Option<String>,
+    confirm_amount: String,
+) -> Result<users::CreditBalance, IpcError> {
+    let validation = |m: &str| IpcError {
+        code: "VALIDATION",
+        message: m.to_string(),
+        mfa_methods: None,
+    };
+    if amount_minor == 0 {
+        return Err(validation("Amount can't be zero."));
+    }
+    let typed: f64 = confirm_amount
+        .trim()
+        .parse()
+        .map_err(|_| validation("Type the amount to confirm."))?;
+    let typed_minor = (typed * 100.0).round() as i64;
+    if typed_minor != amount_minor.abs() {
+        return Err(validation("The typed amount doesn't match — nothing was charged."));
+    }
+    users::credit_adjust(&state.auth, &id, amount_minor, reason.as_deref(), note.as_deref())
+        .await
+        .map_err(Into::into)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdminCustomerList {
+    pub customers: Vec<users::AdminCustomer>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub meta: Option<PageMeta>,
+}
+
+#[tauri::command]
+pub async fn admin_customers_list(
+    state: State<'_, AppState>,
+    page: Option<u32>,
+    page_size: Option<u32>,
+    q: Option<String>,
+) -> Result<AdminCustomerList, IpcError> {
+    let page = users::customers_list(&state.auth, page.unwrap_or(1), page_size.unwrap_or(25), q.as_deref())
+        .await?;
+    Ok(AdminCustomerList { customers: page.data, meta: page.meta })
+}
+
 // ── Fleet server oversight (servers.read / servers.manage) ─────────────
 
 #[derive(Serialize)]

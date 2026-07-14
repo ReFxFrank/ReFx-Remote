@@ -5,6 +5,7 @@ import { hasPermission, type AdminPermission } from "../../lib/perms";
 import { LogoWordmark } from "../Logo";
 import Roles from "./Roles";
 import AdminServers from "./AdminServers";
+import AdminUsers from "./AdminUsers";
 
 type NavItem = { screen: AdminScreen; label: string; perm: AdminPermission; ready?: boolean };
 type NavGroup = { group: string; items: NavItem[] };
@@ -16,7 +17,7 @@ const NAV: NavGroup[] = [
   { group: "Fleet", items: [{ screen: "servers", label: "Servers", perm: "servers.read", ready: true }] },
   {
     group: "People",
-    items: [{ screen: "users", label: "Users & customers", perm: "users.read" }],
+    items: [{ screen: "users", label: "Users & customers", perm: "users.read", ready: true }],
   },
   {
     group: "Infrastructure",
@@ -126,6 +127,7 @@ export default function AdminApp() {
 function AdminScreenView({ screen, ready }: { screen: AdminScreen; ready?: boolean }) {
   if (screen === "roles") return <Roles />;
   if (screen === "servers") return <AdminServers />;
+  if (screen === "users") return <AdminUsers />;
   return (
     <div className="flex h-full items-center justify-center p-8 text-center">
       <div className="max-w-sm">
