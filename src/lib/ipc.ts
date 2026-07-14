@@ -15,9 +15,11 @@ export type Profile = {
   permissions: string[];
 };
 
-export type AuthStatus = { signedIn: boolean; profile?: Profile };
+export type AuthStatus = { signedIn: boolean; offline?: boolean; profile?: Profile };
 
 export type LoginResult = { status: "ok" } | { status: "mfa"; methods: string[] };
+export type TotpEnrollment = { otpauthUrl?: string | null; secret?: string | null };
+export type RecoveryCodes = { recoveryCodes: string[] };
 
 export type IpcError = { code: string; message: string; mfaMethods?: string[] };
 
@@ -113,6 +115,8 @@ export type Database = {
   remoteAccess?: boolean | null;
   createdAt?: string | null;
 };
+export type CreatedDatabase = Database & { password?: string | null };
+export type DatabasePassword = { password?: string | null };
 
 export type FileEntry = {
   name: string;
@@ -635,6 +639,9 @@ export const ipc = {
     invoke<LoginResult>("auth_login", { email, password, remember, totp }),
   accountPassword: (currentPassword: string, newPassword: string) =>
     invoke<void>("account_password", { currentPassword, newPassword }),
+  mfaTotpEnroll: () => invoke<TotpEnrollment>("mfa_totp_enroll"),
+  mfaTotpVerify: (code: string) => invoke<RecoveryCodes>("mfa_totp_verify", { code }),
+  mfaTotpDisable: () => invoke<void>("mfa_totp_disable"),
   authMfaVerify: (code: string, method?: string) =>
     invoke<void>("auth_mfa_verify", { code, method }),
   authLogout: () => invoke<void>("auth_logout"),
@@ -687,7 +694,31 @@ export const ipc = {
     invoke<void>("schedule_set_active", { serverId, scheduleId, active }),
   scheduleRun: (serverId: string, scheduleId: string) =>
     invoke<void>("schedule_run", { serverId, scheduleId }),
+  scheduleCreate: (
+    serverId: string,
+    input: {
+      name: string;
+      cron: string;
+      onlyWhenOnline: boolean;
+      isActive: boolean;
+      taskAction?: string;
+      taskPayload?: string;
+    },
+  ) => invoke<Schedule>("schedule_create", { serverId, ...input }),
+  scheduleUpdate: (
+    serverId: string,
+    scheduleId: string,
+    input: { name: string; cron: string; onlyWhenOnline: boolean },
+  ) => invoke<Schedule>("schedule_update", { serverId, scheduleId, ...input }),
+  scheduleDelete: (serverId: string, scheduleId: string) =>
+    invoke<void>("schedule_delete", { serverId, scheduleId }),
   databasesList: (serverId: string) => invoke<Database[]>("databases_list", { serverId }),
+  databaseCreate: (serverId: string, engine: string, name: string, remoteAccess: boolean) =>
+    invoke<CreatedDatabase>("database_create", { serverId, engine, name, remoteAccess }),
+  databaseDelete: (serverId: string, databaseId: string) =>
+    invoke<void>("database_delete", { serverId, databaseId }),
+  databaseRotate: (serverId: string, databaseId: string) =>
+    invoke<DatabasePassword>("database_rotate", { serverId, databaseId }),
   settingsGet: () => invoke<AppSettings>("settings_get"),
   settingsSet: (next: AppSettings) => invoke<void>("settings_set", { next }),
   copyDiagnostics: () => invoke<string>("copy_diagnostics"),

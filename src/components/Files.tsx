@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ipc, errorMessage, type FileEntry } from "../lib/ipc";
 import { fromMb } from "../lib/format";
 import FileEditor, { type EditorApi } from "./FileEditor";
+import { ConfirmDialog, PromptDialog } from "./Dialog";
 
 const TEXT_EXT = new Set([
   "properties", "yml", "yaml", "json", "toml", "cfg", "conf", "txt", "log",
@@ -33,6 +34,11 @@ function parentPath(dir: string): string {
 }
 
 type Editing = { path: string; name: string; content: string };
+type FileDialog =
+  | { kind: "newFolder" }
+  | { kind: "rename"; entry: FileEntry }
+  | { kind: "delete"; entry: FileEntry }
+  | { kind: "discard" };
 
 export default function Files({ serverId, canWrite }: { serverId: string; canWrite: boolean }) {
   const [path, setPath] = useState("/");
@@ -43,6 +49,7 @@ export default function Files({ serverId, canWrite }: { serverId: string; canWri
   const [notice, setNotice] = useState<string | null>(null);
   const [editing, setEditing] = useState<Editing | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [dialog, setDialog] = useState<FileDialog | null>(null);
   const editorApi = useRef<EditorApi | null>(null);
   // Monotonic id so an earlier, slower directory listing can't overwrite a
   // later one (out-of-order responses would render the wrong folder).
@@ -126,9 +133,11 @@ export default function Files({ serverId, canWrite }: { serverId: string; canWri
     });
   }
 
-  async function newFolder() {
-    const name = window.prompt("New folder name:");
-    if (!name) return;
+  function newFolder() {
+    setDialog({ kind: "newFolder" });
+  }
+  async function doNewFolder(name: string) {
+    setDialog(null);
     await run(async () => {
       await ipc.filesMkdir(serverId, joinPath(path, name));
       await load(path);
@@ -156,9 +165,12 @@ export default function Files({ serverId, canWrite }: { serverId: string; canWri
     });
   }
 
-  async function rename(entry: FileEntry) {
-    const to = window.prompt("Rename to:", entry.name);
-    if (!to || to === entry.name) return;
+  function rename(entry: FileEntry) {
+    setDialog({ kind: "rename", entry });
+  }
+  async function doRename(entry: FileEntry, to: string) {
+    setDialog(null);
+    if (to === entry.name) return;
     await run(async () => {
       const from = entry.path || joinPath(path, entry.name);
       await ipc.filesRename(serverId, from, joinPath(path, to));
@@ -166,10 +178,13 @@ export default function Files({ serverId, canWrite }: { serverId: string; canWri
     });
   }
 
-  async function remove(entry: FileEntry) {
-    const p = entry.path || joinPath(path, entry.name);
-    if (!window.confirm(`Delete "${entry.name}"? This can't be undone.`)) return;
+  function remove(entry: FileEntry) {
+    setDialog({ kind: "delete", entry });
+  }
+  async function doRemove(entry: FileEntry) {
+    setDialog(null);
     await run(async () => {
+      const p = entry.path || joinPath(path, entry.name);
       await ipc.filesDelete(serverId, [p]);
       await load(path);
     });
@@ -202,8 +217,8 @@ export default function Files({ serverId, canWrite }: { serverId: string; canWri
             </button>
             <button
               onClick={() => {
-                if (dirty && !window.confirm("Discard unsaved changes?")) return;
-                setEditing(null);
+                if (dirty) setDialog({ kind: "discard" });
+                else setEditing(null);
               }}
               className="rounded border border-white/10 px-3 py-1 text-xs text-foreground/85 hover:border-primary/50"
             >
@@ -220,6 +235,19 @@ export default function Files({ serverId, canWrite }: { serverId: string; canWri
             bindApi={(api) => (editorApi.current = api)}
           />
         </div>
+        {dialog?.kind === "discard" && (
+          <ConfirmDialog
+            title="Discard changes?"
+            body="You have unsaved changes to this file. Close without saving?"
+            confirmLabel="Discard"
+            danger
+            onConfirm={() => {
+              setDialog(null);
+              setEditing(null);
+            }}
+            onCancel={() => setDialog(null)}
+          />
+        )}
       </div>
     );
   }
@@ -323,6 +351,36 @@ export default function Files({ serverId, canWrite }: { serverId: string; canWri
           </table>
         )}
       </div>
+
+      {dialog?.kind === "newFolder" && (
+        <PromptDialog
+          title="New folder"
+          label="Folder name"
+          confirmLabel="Create"
+          onSubmit={(name) => void doNewFolder(name)}
+          onCancel={() => setDialog(null)}
+        />
+      )}
+      {dialog?.kind === "rename" && (
+        <PromptDialog
+          title="Rename"
+          label="New name"
+          initialValue={dialog.entry.name}
+          confirmLabel="Rename"
+          onSubmit={(to) => void doRename(dialog.entry, to)}
+          onCancel={() => setDialog(null)}
+        />
+      )}
+      {dialog?.kind === "delete" && (
+        <ConfirmDialog
+          title={`Delete ${dialog.entry.name}?`}
+          body="This can't be undone."
+          confirmLabel="Delete"
+          danger
+          onConfirm={() => void doRemove(dialog.entry)}
+          onCancel={() => setDialog(null)}
+        />
+      )}
     </div>
   );
 }

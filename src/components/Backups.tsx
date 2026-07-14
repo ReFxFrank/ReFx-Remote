@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ipc, errorMessage, type Backup } from "../lib/ipc";
 import { fromMb } from "../lib/format";
 import TypedConfirm from "./TypedConfirm";
+import { PromptDialog } from "./Dialog";
 
 function fmtSize(bytes?: number | null): string {
   if (!bytes) return "—";
@@ -53,6 +54,7 @@ export default function Backups({
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<Confirm>(null);
+  const [naming, setNaming] = useState(false);
   const seq = useRef(0);
   const error = actionError ?? loadError;
 
@@ -96,11 +98,13 @@ export default function Backups({
     }
   }
 
-  async function create() {
-    const name = window.prompt("Backup name:", `backup-${new Date().toISOString().slice(0, 10)}`);
-    if (name == null) return;
+  function create() {
+    setNaming(true);
+  }
+  async function doCreate(name: string) {
+    setNaming(false);
     await run(async () => {
-      await ipc.backupCreate(serverId, name.trim() || "backup");
+      await ipc.backupCreate(serverId, name);
       await load();
     });
   }
@@ -245,6 +249,16 @@ export default function Backups({
           confirmLabel="Delete"
           onConfirm={doConfirm}
           onCancel={() => setConfirm(null)}
+        />
+      )}
+      {naming && (
+        <PromptDialog
+          title="Create backup"
+          label="Backup name"
+          initialValue={`backup-${new Date().toISOString().slice(0, 10)}`}
+          confirmLabel="Create"
+          onSubmit={(name) => void doCreate(name)}
+          onCancel={() => setNaming(false)}
         />
       )}
     </div>

@@ -78,3 +78,73 @@ pub async fn run_now(auth: &AuthManager, id: &str, schedule_id: &str) -> Result<
     )
     .await
 }
+
+/// One task to run when the schedule fires. `action` is `COMMAND` | `POWER` |
+/// `BACKUP`; `payload` is the command text or power signal.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScheduleTaskInput {
+    pub action: String,
+    pub payload: String,
+}
+
+/// Body for `POST /servers/:id/schedules`. A schedule with no tasks never does
+/// anything, so the UI supplies at least one.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateScheduleBody {
+    pub name: String,
+    pub cron: String,
+    pub only_when_online: bool,
+    pub is_active: bool,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub tasks: Vec<ScheduleTaskInput>,
+}
+
+/// Body for `PATCH /servers/:id/schedules/:scheduleId`. Only the fields sent
+/// change; omitting `tasks` leaves an existing schedule's tasks untouched.
+#[derive(Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateScheduleBody {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cron: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub only_when_online: Option<bool>,
+}
+
+/// `POST /servers/:id/schedules` — create a schedule (optionally with a task).
+pub async fn create(
+    auth: &AuthManager,
+    id: &str,
+    body: &CreateScheduleBody,
+) -> Result<Schedule, PanelError> {
+    auth.authed_json(Method::POST, &format!("/servers/{id}/schedules"), Some(body))
+        .await
+}
+
+/// `PATCH /servers/:id/schedules/:scheduleId` — update schedule fields.
+pub async fn update(
+    auth: &AuthManager,
+    id: &str,
+    schedule_id: &str,
+    body: &UpdateScheduleBody,
+) -> Result<Schedule, PanelError> {
+    auth.authed_json(
+        Method::PATCH,
+        &format!("/servers/{id}/schedules/{schedule_id}"),
+        Some(body),
+    )
+    .await
+}
+
+/// `DELETE /servers/:id/schedules/:scheduleId`.
+pub async fn delete(auth: &AuthManager, id: &str, schedule_id: &str) -> Result<(), PanelError> {
+    auth.authed_no_content::<()>(
+        Method::DELETE,
+        &format!("/servers/{id}/schedules/{schedule_id}"),
+        None,
+    )
+    .await
+}

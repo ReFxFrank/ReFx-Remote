@@ -226,6 +226,49 @@ async fn revoked_refresh_maps_to_session_expired_and_clears() {
 }
 
 #[tokio::test]
+async fn concurrent_401s_rotate_the_token_only_once() {
+    // Two authed requests in flight at once both see the stale access token and
+    // 401. The single-flight gate must rotate exactly ONCE — a second rotation
+    // would re-send the already-consumed refresh token and (per the server's
+    // reuse detection) revoke every session the user has.
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/auth/login"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(tokens_body("OLD", "R1")))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/auth/me"))
+        .and(header("authorization", "Bearer OLD"))
+        .respond_with(ResponseTemplate::new(401).set_body_json(json!({
+            "statusCode": 401, "error": "UnauthorizedException",
+            "message": "Unauthorized", "path": "/api/v1/auth/me",
+            "timestamp": "2026-07-13T00:00:00.000Z"
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/auth/refresh"))
+        .and(body_partial_json(json!({"refreshToken": "R1"})))
+        .respond_with(ResponseTemplate::new(200).set_body_json(tokens_body("NEW", "R2")))
+        .expect(1) // verified on drop: exactly one rotation despite two 401s
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/auth/me"))
+        .and(header("authorization", "Bearer NEW"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(profile_body("t@x.com")))
+        .mount(&server)
+        .await;
+
+    let auth = manager(&server);
+    auth.login("t@x.com", "pw", None, true).await.unwrap();
+    let (a, b) = tokio::join!(auth.profile(), auth.profile());
+    assert_eq!(a.unwrap().email, "t@x.com");
+    assert_eq!(b.unwrap().email, "t@x.com");
+}
+
+#[tokio::test]
 async fn password_change_required_detected_from_real_wire_shape() {
     // The global exception filter DROPS the interceptor's `code` field —
     // the real body identifies itself only by the message.

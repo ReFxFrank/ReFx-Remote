@@ -4,6 +4,7 @@ import { useNav } from "./store/nav";
 import { isStaffPerms } from "./lib/perms";
 import SignIn from "./screens/SignIn";
 import ForcePasswordChange from "./screens/ForcePasswordChange";
+import Reconnecting from "./screens/Reconnecting";
 import Servers from "./screens/Servers";
 import AdminApp from "./components/admin/AdminApp";
 import { Aurora } from "./components/Logo";
@@ -30,6 +31,8 @@ export default function App() {
         <main className="flex h-screen items-center justify-center">
           <p className="text-sm text-muted-foreground">Starting…</p>
         </main>
+      ) : status === "offline" ? (
+        <Reconnecting />
       ) : status === "signedIn" ? (
         profile?.mustChangePassword ? <ForcePasswordChange /> : signedInView
       ) : (

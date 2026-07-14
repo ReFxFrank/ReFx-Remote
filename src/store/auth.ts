@@ -1,7 +1,17 @@
 import { create } from "zustand";
-import { errorMessage, ipc, type Profile } from "../lib/ipc";
+import { errorMessage, ipc, isIpcError, type Profile } from "../lib/ipc";
 
-type Status = "loading" | "signedOut" | "mfa" | "signedIn";
+type Status = "loading" | "signedOut" | "offline" | "mfa" | "signedIn";
+
+// Auto-retry timer for the offline/reconnecting state. Module-scoped so it
+// survives store updates and never stacks.
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+function clearReconnect() {
+  if (reconnectTimer !== null) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+}
 
 type AuthStore = {
   status: Status;
@@ -27,15 +37,28 @@ export const useAuth = create<AuthStore>((set, get) => ({
   error: null,
 
   init: async () => {
+    clearReconnect();
     try {
       const s = await ipc.authStatus();
-      set(
-        s.signedIn
-          ? { status: "signedIn", profile: s.profile ?? null, error: null }
-          : { status: "signedOut", profile: null },
-      );
+      if (s.signedIn) {
+        set({ status: "signedIn", profile: s.profile ?? null, error: null });
+      } else if (s.offline) {
+        // A resumable session exists but the server is unreachable. Show a
+        // reconnecting state and retry, rather than forcing a re-login.
+        set({ status: "offline", profile: null, error: null });
+        reconnectTimer = setTimeout(() => void get().init(), 4000);
+      } else {
+        set({ status: "signedOut", profile: null });
+      }
     } catch (e) {
-      set({ status: "signedOut", profile: null, error: errorMessage(e) });
+      // A network error with an unknown session state: keep trying instead of
+      // dropping to sign-in. Anything else is a genuine signed-out.
+      if (isIpcError(e) && e.code === "NETWORK") {
+        set({ status: "offline", profile: null, error: null });
+        reconnectTimer = setTimeout(() => void get().init(), 4000);
+      } else {
+        set({ status: "signedOut", profile: null, error: errorMessage(e) });
+      }
     }
   },
 
@@ -96,6 +119,7 @@ export const useAuth = create<AuthStore>((set, get) => ({
     }),
 
   logout: async () => {
+    clearReconnect();
     set({ busy: true, error: null });
     try {
       await ipc.authLogout();

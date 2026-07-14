@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { ipc, errorMessage, type AppSettings, type AppInfo } from "../lib/ipc";
 import { useAuth } from "../store/auth";
+import { ConfirmDialog } from "./Dialog";
+import TwoFactorSetup from "./TwoFactorSetup";
 
 function Toggle({
   label,
@@ -37,11 +39,24 @@ function Toggle({
 }
 
 export default function Settings({ onClose }: { onClose: () => void }) {
-  const { profile, logout } = useAuth();
+  const { profile, logout, init } = useAuth();
   const [s, setS] = useState<AppSettings | null>(null);
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [setup2fa, setSetup2fa] = useState(false);
+  const [disable2fa, setDisable2fa] = useState(false);
+
+  async function disableTwoFactor() {
+    setDisable2fa(false);
+    setError(null);
+    try {
+      await ipc.mfaTotpDisable();
+      await init();
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  }
 
   useEffect(() => {
     ipc.settingsGet().then(setS).catch((e) => setError(errorMessage(e)));
@@ -128,6 +143,33 @@ export default function Settings({ onClose }: { onClose: () => void }) {
           </>
         )}
 
+        <div className="refx-eyebrow mt-5">Security</div>
+        <div className="flex items-start justify-between gap-4 py-2">
+          <span>
+            <span className="text-sm text-foreground">Two-factor authentication</span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">
+              {profile?.totpEnabledAt
+                ? "On — asked for at every sign-in."
+                : "Add a second step when you sign in."}
+            </span>
+          </span>
+          {profile?.totpEnabledAt ? (
+            <button
+              onClick={() => setDisable2fa(true)}
+              className="btn-ghost mt-0.5 shrink-0 rounded-md px-3 py-1 text-xs"
+            >
+              Turn off
+            </button>
+          ) : (
+            <button
+              onClick={() => setSetup2fa(true)}
+              className="btn-ghost mt-0.5 shrink-0 rounded-md px-3 py-1 text-xs"
+            >
+              Set up
+            </button>
+          )}
+        </div>
+
         <div className="mt-6 flex items-center justify-between border-t border-white/[0.06] pt-4">
           <button onClick={() => void copyDiagnostics()} className="btn-ghost rounded-md px-3 py-1.5 text-sm">
             {copied ? "Copied to clipboard" : "Copy diagnostics"}
@@ -146,6 +188,20 @@ export default function Settings({ onClose }: { onClose: () => void }) {
         <p className="mt-3 text-center text-[11px] text-muted-foreground">
           {info ? `${info.name} v${info.version}` : " "}
         </p>
+
+        {setup2fa && (
+          <TwoFactorSetup onClose={() => setSetup2fa(false)} onDone={() => void init()} />
+        )}
+        {disable2fa && (
+          <ConfirmDialog
+            title="Turn off two-factor?"
+            body="Your account will be protected by password only. You can turn it back on any time."
+            confirmLabel="Turn off"
+            danger
+            onConfirm={() => void disableTwoFactor()}
+            onCancel={() => setDisable2fa(false)}
+          />
+        )}
       </div>
     </div>
   );

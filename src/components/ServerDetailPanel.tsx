@@ -43,6 +43,9 @@ export default function ServerDetailPanel({ server }: { server: ServerSummary })
   const canBackupRestore = detailReady ? hasPerm("backup.restore", "backup.*") : true;
   const canBackupDelete = detailReady ? hasPerm("backup.delete", "backup.*") : true;
   const canSchedule = detailReady ? hasPerm("schedule.update", "schedule.*") : true;
+  const canDatabase = detailReady
+    ? hasPerm("database.create", "database.delete", "database.update", "database.*")
+    : true;
   const canEditSettings = detailReady ? hasPerm("settings.update", "settings.*") : true;
   const [tab, setTab] = useState<Tab>("console");
   const [confirmRestart, setConfirmRestart] = useState(false);
@@ -239,7 +242,7 @@ export default function ServerDetailPanel({ server }: { server: ServerSummary })
         )}
         {tab === "databases" && (
           <div className="flex min-h-0 flex-1 flex-col">
-            <Databases key={server.id} serverId={server.id} />
+            <Databases key={server.id} serverId={server.id} canManage={canDatabase} />
           </div>
         )}
       </div>

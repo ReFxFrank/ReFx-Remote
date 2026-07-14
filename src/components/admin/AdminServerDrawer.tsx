@@ -125,7 +125,7 @@ export default function AdminServerDrawer({
           )}
           {tab === "startup" && <Startup key={server.id} serverId={server.id} canEdit={canManage} />}
           {tab === "schedules" && <Schedules key={server.id} serverId={server.id} canManage={canManage} />}
-          {tab === "databases" && <Databases key={server.id} serverId={server.id} />}
+          {tab === "databases" && <Databases key={server.id} serverId={server.id} canManage={canManage} />}
         </div>
       </div>
     </div>

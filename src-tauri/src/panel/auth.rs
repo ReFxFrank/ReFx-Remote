@@ -205,6 +205,14 @@ impl AuthManager {
         self.tokens.read().await.is_some()
     }
 
+    /// Whether a refresh token is persisted (a resumable session exists on
+    /// disk), even if it isn't loaded into memory. Lets the UI tell "offline at
+    /// launch" (vault still holds a token) apart from "signed out" — a 401
+    /// during resume clears the vault, a network error does not.
+    pub fn has_vaulted_session(&self) -> bool {
+        matches!(self.vault.load_refresh_token(), Ok(Some(_)))
+    }
+
     /// Current access token for opening a console websocket. Errors if
     /// signed out.
     pub async fn access_token(&self) -> Result<String, PanelError> {

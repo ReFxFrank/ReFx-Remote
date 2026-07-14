@@ -40,6 +40,10 @@ pub fn app_info() -> AppInfo {
 #[serde(rename_all = "camelCase")]
 pub struct AuthStatus {
     pub signed_in: bool,
+    /// A resumable session exists on disk but the server is unreachable right
+    /// now (e.g. offline at launch). The UI shows a reconnecting state and
+    /// retries, instead of dropping the user to sign-in.
+    pub offline: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile: Option<Profile>,
 }
@@ -48,19 +52,31 @@ pub struct AuthStatus {
 pub async fn auth_status(state: State<'_, AppState>) -> Result<AuthStatus, IpcError> {
     state.ensure_bootstrapped().await;
     if !state.auth.is_signed_in().await {
+        // Not resumed into memory. If the vault still holds a refresh token, the
+        // resume failed on the network (a 401 would have cleared it) — we're
+        // offline with a resumable session, not signed out.
         return Ok(AuthStatus {
             signed_in: false,
+            offline: state.auth.has_vaulted_session(),
             profile: None,
         });
     }
     match state.auth.profile().await {
         Ok(profile) => Ok(AuthStatus {
             signed_in: true,
+            offline: false,
             profile: Some(profile),
         }),
         // Session died between bootstrap and now — report signed out.
         Err(e) if e.code() == "SESSION_EXPIRED" || e.code() == "NOT_SIGNED_IN" => Ok(AuthStatus {
             signed_in: false,
+            offline: false,
+            profile: None,
+        }),
+        // Live session, but the server is unreachable right now.
+        Err(e) if e.code() == "NETWORK" => Ok(AuthStatus {
+            signed_in: false,
+            offline: true,
             profile: None,
         }),
         Err(e) => Err(e.into()),
@@ -111,6 +127,27 @@ pub async fn account_password(
 ) -> Result<(), IpcError> {
     account::change_password(&state.auth, &current_password, &new_password).await?;
     Ok(())
+}
+
+/// Begin TOTP two-factor enrollment — returns the secret + otpauth URL.
+#[tauri::command]
+pub async fn mfa_totp_enroll(state: State<'_, AppState>) -> Result<account::TotpEnrollment, IpcError> {
+    account::totp_enroll(&state.auth).await.map_err(Into::into)
+}
+
+/// Confirm TOTP enrollment with a code; returns the one-time recovery codes.
+#[tauri::command]
+pub async fn mfa_totp_verify(
+    state: State<'_, AppState>,
+    code: String,
+) -> Result<account::RecoveryCodes, IpcError> {
+    account::totp_verify(&state.auth, code.trim()).await.map_err(Into::into)
+}
+
+/// Turn off TOTP two-factor.
+#[tauri::command]
+pub async fn mfa_totp_disable(state: State<'_, AppState>) -> Result<(), IpcError> {
+    account::totp_disable(&state.auth).await.map_err(Into::into)
 }
 
 #[tauri::command]
@@ -476,6 +513,63 @@ pub async fn schedule_run(
     schedules::run_now(&state.auth, &server_id, &schedule_id).await.map_err(Into::into)
 }
 
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub async fn schedule_create(
+    state: State<'_, AppState>,
+    server_id: String,
+    name: String,
+    cron: String,
+    only_when_online: bool,
+    is_active: bool,
+    task_action: Option<String>,
+    task_payload: Option<String>,
+) -> Result<Schedule, IpcError> {
+    let tasks = match task_action {
+        Some(action) if !action.trim().is_empty() => vec![schedules::ScheduleTaskInput {
+            action,
+            payload: task_payload.unwrap_or_default(),
+        }],
+        _ => Vec::new(),
+    };
+    let body = schedules::CreateScheduleBody {
+        name: name.trim().to_string(),
+        cron: cron.trim().to_string(),
+        only_when_online,
+        is_active,
+        tasks,
+    };
+    schedules::create(&state.auth, &server_id, &body).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn schedule_update(
+    state: State<'_, AppState>,
+    server_id: String,
+    schedule_id: String,
+    name: String,
+    cron: String,
+    only_when_online: bool,
+) -> Result<Schedule, IpcError> {
+    let body = schedules::UpdateScheduleBody {
+        name: Some(name.trim().to_string()),
+        cron: Some(cron.trim().to_string()),
+        only_when_online: Some(only_when_online),
+    };
+    schedules::update(&state.auth, &server_id, &schedule_id, &body)
+        .await
+        .map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn schedule_delete(
+    state: State<'_, AppState>,
+    server_id: String,
+    schedule_id: String,
+) -> Result<(), IpcError> {
+    schedules::delete(&state.auth, &server_id, &schedule_id).await.map_err(Into::into)
+}
+
 // ── Databases ──────────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -484,6 +578,37 @@ pub async fn databases_list(
     server_id: String,
 ) -> Result<Vec<Database>, IpcError> {
     databases::list(&state.auth, &server_id).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn database_create(
+    state: State<'_, AppState>,
+    server_id: String,
+    engine: String,
+    name: String,
+    remote_access: bool,
+) -> Result<databases::CreatedDatabase, IpcError> {
+    databases::create(&state.auth, &server_id, engine.trim(), name.trim(), remote_access)
+        .await
+        .map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn database_delete(
+    state: State<'_, AppState>,
+    server_id: String,
+    database_id: String,
+) -> Result<(), IpcError> {
+    databases::delete(&state.auth, &server_id, &database_id).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn database_rotate(
+    state: State<'_, AppState>,
+    server_id: String,
+    database_id: String,
+) -> Result<databases::DatabasePassword, IpcError> {
+    databases::rotate(&state.auth, &server_id, &database_id).await.map_err(Into::into)
 }
 
 // ── Settings + diagnostics ─────────────────────────────────────────────
