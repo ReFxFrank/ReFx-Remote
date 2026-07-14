@@ -45,11 +45,10 @@ jobs:
         shell: bash
         run: |
           npm run tauri -- signer generate --ci -p ci -w ci-throwaway.key -f
-          {
-            echo "TAURI_SIGNING_PRIVATE_KEY<<__EOF__"
-            cat ci-throwaway.key
-            echo "__EOF__"
-          } >> "$GITHUB_ENV"
+          # The key file is a single base64 line; $(cat) drops its trailing
+          # newline so the value is clean (a stray newline would break base64
+          # decoding of the key).
+          echo "TAURI_SIGNING_PRIVATE_KEY=$(cat ci-throwaway.key)" >> "$GITHUB_ENV"
           echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD=ci" >> "$GITHUB_ENV"
 
       - name: Release build (NSIS + MSI bundles)
