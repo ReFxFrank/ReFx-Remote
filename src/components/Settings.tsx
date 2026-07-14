@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ipc, errorMessage, type AppSettings, type AppInfo } from "../lib/ipc";
 import { useAuth } from "../store/auth";
+import { hasPermission } from "../lib/perms";
 import { ConfirmDialog } from "./Dialog";
 import TwoFactorSetup from "./TwoFactorSetup";
 
@@ -40,6 +41,9 @@ function Toggle({
 
 export default function Settings({ onClose }: { onClose: () => void }) {
   const { profile, logout, init } = useAuth();
+  // Match the watcher's own gate (support.read): a staffer without support
+  // access shouldn't see a toggle that would do nothing.
+  const canSupport = hasPermission(profile?.permissions ?? [], "support.read");
   const [s, setS] = useState<AppSettings | null>(null);
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -126,6 +130,14 @@ export default function Settings({ onClose }: { onClose: () => void }) {
               checked={s.notifyBackOnline}
               onChange={(v) => update({ notifyBackOnline: v })}
             />
+            {canSupport && (
+              <Toggle
+                label="Support tickets"
+                hint="Alert on new unassigned tickets and replies on tickets assigned to you."
+                checked={s.notifySupport}
+                onChange={(v) => update({ notifySupport: v })}
+              />
+            )}
 
             <div className="refx-eyebrow mt-5">Window</div>
             <Toggle

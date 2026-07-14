@@ -8,11 +8,20 @@ use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
     pub notify_crashed: bool,
     pub notify_back_online: bool,
+    /// Staff-only: Windows notifications for new/updated support tickets. New
+    /// field — defaulted so an older settings.json (missing it) still loads
+    /// without resetting the user's other toggles.
+    #[serde(default = "default_true")]
+    pub notify_support: bool,
     /// Close-to-tray: window close hides instead of quitting.
     pub close_to_tray: bool,
     pub start_with_windows: bool,
@@ -23,6 +32,7 @@ impl Default for Settings {
         Self {
             notify_crashed: true,
             notify_back_online: true,
+            notify_support: true,
             close_to_tray: true,
             start_with_windows: false,
         }

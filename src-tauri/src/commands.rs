@@ -9,6 +9,7 @@ use tauri_plugin_dialog::DialogExt;
 
 use crate::console::{ConsoleLine, ConsoleManager};
 use crate::monitor::{Monitor, NotifyPrefs};
+use crate::support_watch::{SupportPrefs, SupportWatcher};
 use crate::panel::auth::LoginOutcome;
 use crate::panel::backups::{self, Backup};
 use crate::panel::databases::{self, Database};
@@ -642,6 +643,7 @@ pub fn settings_set(
     app: AppHandle,
     settings: State<'_, SettingsStore>,
     monitor: State<'_, Monitor>,
+    support: State<'_, SupportWatcher>,
     next: Settings,
 ) -> Result<(), IpcError> {
     use tauri_plugin_autostart::ManagerExt;
@@ -666,6 +668,9 @@ pub fn settings_set(
     monitor.set_prefs(NotifyPrefs {
         crashed: next.notify_crashed,
         back_online: next.notify_back_online,
+    });
+    support.set_prefs(SupportPrefs {
+        enabled: next.notify_support,
     });
     settings.set(next);
     Ok(())

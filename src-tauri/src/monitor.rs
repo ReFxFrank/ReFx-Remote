@@ -1,10 +1,22 @@
 //! Background server monitor. Runs regardless of window visibility so the
 //! tray stays live and crash alerts fire even when minimised to tray.
 //!
-//! Crash logic (brief §5, §9): a server going RUNNING → OFFLINE/CRASHED is a
-//! crash ONLY if the user didn't just issue a power action (see
-//! `PowerIntent`). Getting this wrong — crying "crashed" on a normal stop —
-//! makes the feature worse than useless, so intent-suppression is central.
+//! Two complementary crash signals:
+//! 1. **The notification feed** (`/account/notifications`) — the backend writes
+//!    a durable row the moment the node-agent reports CRASHED (the same source
+//!    as mobile push). This catches crashes that auto-restart bounces back to
+//!    RUNNING within seconds, which a 20s state poll would sail right past.
+//! 2. **State transitions** — a server *observed* entering CRASHED. Covers the
+//!    case the feed can't: the backend throttles repeat notices per
+//!    server+state (30 min), so a second crash that trips the auto-restart
+//!    loop-guard and stays down would otherwise be silent.
+//!
+//! A crash seen via the feed marks the server in the `crashed` set, so the
+//! state path never double-alerts the same incident (and recovery still
+//! announces "back online").
+//!
+//! Intent-suppression (brief §5, §9) still applies to the state path: a
+//! departure the user just asked for is not a crash.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -16,6 +28,7 @@ use tokio::sync::watch;
 use tracing::debug;
 
 use crate::panel::auth::AuthManager;
+use crate::panel::notifications::{self, AppNotification};
 use crate::panel::servers::{self, ServerState, ServerSummary};
 use crate::state::PowerIntent;
 use crate::tray;
@@ -64,6 +77,9 @@ async fn run(
     // Servers we've alerted as crashed, so we can announce their recovery once.
     let mut crashed: HashSet<String> = HashSet::new();
     let mut primed = false; // don't fire alerts on the very first snapshot
+    // Notification-feed rows already seen (feed is newest-first, page 1).
+    let mut seen_notices: HashSet<String> = HashSet::new();
+    let mut notices_primed = false;
 
     loop {
         tokio::time::sleep(POLL).await;
@@ -71,6 +87,8 @@ async fn run(
             last.clear();
             crashed.clear();
             primed = false;
+            seen_notices.clear();
+            notices_primed = false;
             tray::set_servers(&app, &[]);
             continue;
         }
@@ -84,6 +102,24 @@ async fn run(
         tray::set_servers(&app, &page.data);
 
         let p = *prefs.borrow();
+
+        // The notification feed first: a crash row marks the server in
+        // `crashed` BEFORE the state pass, so the same incident never
+        // double-alerts even when both signals land in one tick.
+        match notifications::list(&auth, 1, 20).await {
+            Ok(rows) => {
+                if notices_primed {
+                    for row in rows.iter().filter(|r| !seen_notices.contains(&r.id)) {
+                        handle_notice(&app, row, &page.data, &mut crashed, p);
+                    }
+                }
+                seen_notices.clear();
+                seen_notices.extend(rows.iter().map(|r| r.id.clone()));
+                notices_primed = true;
+            }
+            Err(e) => debug!("notification feed poll failed: {}", e.code()),
+        }
+
         let present: HashSet<String> = page.data.iter().map(|s| s.id.clone()).collect();
 
         for s in &page.data {
@@ -97,6 +133,73 @@ async fn run(
         last.retain(|id, _| present.contains(id));
         crashed.retain(|id| present.contains(id));
         primed = true;
+    }
+}
+
+/// What a feed row is about, classified from the backend's fixed phrasing
+/// (`Your server "NAME" has crashed.` / `… was suspended.`).
+#[derive(Debug, PartialEq, Eq)]
+enum Notice {
+    Crash { server_name: String },
+    Suspended,
+    Other,
+}
+
+fn classify_notice(body: &str) -> Notice {
+    if let Some(name) = quoted_name(body) {
+        if body.ends_with("has crashed.") {
+            return Notice::Crash { server_name: name };
+        }
+        if body.ends_with("was suspended.") {
+            return Notice::Suspended;
+        }
+    }
+    Notice::Other
+}
+
+/// The server name between the first pair of double quotes, if any.
+fn quoted_name(body: &str) -> Option<String> {
+    let start = body.find('"')? + 1;
+    let end = start + body[start..].find('"')?;
+    (end > start).then(|| body[start..end].to_string())
+}
+
+/// React to one previously-unseen notification-feed row.
+fn handle_notice(
+    app: &AppHandle,
+    row: &AppNotification,
+    servers: &[ServerSummary],
+    crashed: &mut HashSet<String>,
+    prefs: NotifyPrefs,
+) {
+    // EMAIL-channel rows are delivery records, not app-facing notices.
+    if matches!(row.channel.as_deref(), Some(c) if c != "IN_APP") {
+        return;
+    }
+    let body = row.body.as_deref().unwrap_or_default();
+    match classify_notice(body) {
+        Notice::Crash { server_name } => {
+            if prefs.crashed {
+                notify(app, "Server crashed", &format!("{server_name} crashed."));
+            }
+            // Mark it as already-alerted so the state pass doesn't re-alert; if
+            // it's still down, recovery will announce "back online" later. An
+            // auto-restarted server (already RUNNING) needs no recovery toast.
+            if let Some(s) = servers.iter().find(|s| s.name == server_name) {
+                if matches!(s.state, ServerState::Offline | ServerState::Crashed) {
+                    crashed.insert(s.id.clone());
+                }
+            }
+        }
+        // The state pass owns suspension (the SUSPENDED state persists, so the
+        // poll always observes it) — skip the row to avoid a double toast.
+        Notice::Suspended => {}
+        Notice::Other => {
+            let title = row.title.as_deref().unwrap_or("ReFx");
+            if !body.is_empty() {
+                notify(app, title, body);
+            }
+        }
     }
 }
 
@@ -288,5 +391,43 @@ mod tests {
     #[test]
     fn suspension_is_surfaced() {
         assert_eq!(decide(Running, Suspended, false, false).alert, Alert::Suspended);
+    }
+
+    // ── Notification-feed classification ────────────────────────────────
+
+    use super::{classify_notice, Notice};
+
+    #[test]
+    fn crash_notice_is_classified_with_the_server_name() {
+        assert_eq!(
+            classify_notice(r#"Your server "Valheim — Midgard" has crashed."#),
+            Notice::Crash { server_name: "Valheim — Midgard".into() },
+        );
+    }
+
+    #[test]
+    fn suspended_notice_is_classified_and_left_to_the_state_pass() {
+        assert_eq!(
+            classify_notice(r#"Your server "My Server" was suspended."#),
+            Notice::Suspended,
+        );
+    }
+
+    #[test]
+    fn unrelated_notices_are_other() {
+        assert_eq!(classify_notice("Your invoice #1042 is due."), Notice::Other);
+        assert_eq!(classify_notice(""), Notice::Other);
+        // Quoted but not a state phrase.
+        assert_eq!(classify_notice(r#"Ticket "hello" was updated."#), Notice::Other);
+    }
+
+    #[test]
+    fn a_quoted_crash_phrase_inside_a_name_does_not_confuse_the_parser() {
+        // The name itself is the first quoted span; the suffix check still
+        // requires the fixed backend phrasing at the end.
+        assert_eq!(
+            classify_notice(r#"Your server "has crashed" has crashed."#),
+            Notice::Crash { server_name: "has crashed".into() },
+        );
     }
 }

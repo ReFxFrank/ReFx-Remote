@@ -150,6 +150,7 @@ export type StatusEvent = { state: ServerState };
 export type AppSettings = {
   notifyCrashed: boolean;
   notifyBackOnline: boolean;
+  notifySupport: boolean;
   closeToTray: boolean;
   startWithWindows: boolean;
 };

@@ -12,6 +12,7 @@ pub mod deeplink;
 pub mod logging;
 pub mod monitor;
 pub mod settings;
+pub mod support_watch;
 pub mod state;
 pub mod tray;
 pub mod vault;
@@ -69,11 +70,17 @@ pub fn run() {
                 crashed: s.notify_crashed,
                 back_online: s.notify_back_online,
             });
+            // Staff-only support-ticket alerts, alongside the crash monitor.
+            let support = support_watch::spawn(app.handle().clone(), state.auth.clone());
+            support.set_prefs(support_watch::SupportPrefs {
+                enabled: s.notify_support,
+            });
             // Manage state BEFORE registering deep links: a cold-start
             // `refx://` link routes synchronously inside `register` and reads
             // `AppState` (the deep-link inbox), which must already be managed.
             app.manage(console);
             app.manage(mon);
+            app.manage(support);
             app.manage(store);
             app.manage(state);
             tray::build(app.handle())?;

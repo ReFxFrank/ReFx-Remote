@@ -14,6 +14,7 @@ pub mod databases;
 pub mod error;
 pub mod files;
 pub mod models;
+pub mod notifications;
 pub mod perms;
 pub mod schedules;
 pub mod servers;
