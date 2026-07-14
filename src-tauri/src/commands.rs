@@ -17,6 +17,7 @@ use crate::panel::files::{self, FileEntry};
 use crate::panel::models::{PageMeta, Profile};
 use crate::panel::schedules::{self, Schedule};
 use crate::panel::servers::{self, LiveStats, PowerSignal, ServerDetail, ServerSummary};
+use crate::panel::account;
 use crate::panel::startup::{self, Startup, Variable};
 use crate::settings::{Settings, SettingsStore};
 use crate::state::AppState;
@@ -97,6 +98,19 @@ pub async fn auth_login(
         LoginOutcome::SignedIn => LoginResult::Ok,
         LoginOutcome::MfaRequired { methods } => LoginResult::Mfa { methods },
     })
+}
+
+/// Change the signed-in user's password. Reachable while the account is locked
+/// for a required password change (e.g. an admin set a temporary password), so
+/// the customer can unblock themselves without leaving the app.
+#[tauri::command]
+pub async fn account_password(
+    state: State<'_, AppState>,
+    current_password: String,
+    new_password: String,
+) -> Result<(), IpcError> {
+    account::change_password(&state.auth, &current_password, &new_password).await?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -544,7 +558,15 @@ pub fn copy_diagnostics(app: AppHandle) -> Result<String, IpcError> {
     while start < content.len() && !content.is_char_boundary(start) {
         start += 1;
     }
-    Ok(content[start..].to_string())
+    // Prepend an environment header so a pasted support bundle carries version
+    // and OS context (individual log lines already carry timestamps).
+    let header = format!(
+        "=== ReFx Desktop diagnostics ===\nApp:  ReFx Desktop v{}\nOS:   {} {}\nLog tail (last 64 KB, secrets redacted):\n\n",
+        env!("CARGO_PKG_VERSION"),
+        std::env::consts::OS,
+        std::env::consts::ARCH,
+    );
+    Ok(format!("{header}{}", &content[start..]))
 }
 
 #[tauri::command]

@@ -86,6 +86,15 @@ function handleAuthDeath(e: unknown): boolean {
     useAuth.getState().sessionExpired();
     return true;
   }
+  if (code === "PASSWORD_CHANGE_REQUIRED") {
+    // An admin required a password change while the user was signed in. Re-read
+    // the profile so App routes to the in-app ForcePasswordChange screen instead
+    // of stranding the user on a stale error. init() uses GET /auth/me, which the
+    // backend allows during a required change. Safe to fire repeatedly: it flips
+    // profile.mustChangePassword, which unmounts this screen and stops the polls.
+    void useAuth.getState().init();
+    return true;
+  }
   return false;
 }
 

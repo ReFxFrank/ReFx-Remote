@@ -5,6 +5,7 @@
 //! rotating refresh (reuse outside the 60s grace window revokes ALL of the
 //! user's sessions — see `auth.rs`).
 
+pub mod account;
 pub mod admin;
 pub mod auth;
 pub mod backups;

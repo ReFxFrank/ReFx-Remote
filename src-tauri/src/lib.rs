@@ -53,6 +53,12 @@ pub fn run() {
             if let Err(e) = logging::init(&log_dir) {
                 eprintln!("logging init failed: {e}");
             }
+            // Route panics into the log file so "Copy diagnostics" captures a
+            // real crash instead of the discarded stderr of a GUI process.
+            std::panic::set_hook(Box::new(|info| {
+                let backtrace = std::backtrace::Backtrace::force_capture();
+                tracing::error!("panic: {info}\n{backtrace}");
+            }));
             let state = state::AppState::new()?;
             let store = settings::SettingsStore::load(app.handle());
             let console = console::ConsoleManager::new(app.handle().clone(), state.auth.clone());
@@ -98,6 +104,7 @@ pub fn run() {
             commands::auth_login,
             commands::auth_mfa_verify,
             commands::auth_logout,
+            commands::account_password,
             commands::servers_list,
             commands::server_get,
             commands::server_stats,

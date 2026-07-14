@@ -86,7 +86,7 @@ impl PanelError {
             Self::InvalidCredentials => "That email or password isn't right.".into(),
             Self::MfaRequired { .. } => "Enter your two-factor code to finish signing in.".into(),
             Self::PasswordChangeRequired => {
-                "Your account requires a password change. Please update it on refx.gg, then sign in here.".into()
+                "Your account requires a password change to continue.".into()
             }
             Self::Forbidden { message } if !message.is_empty() && message != "forbidden" => {
                 message.clone()

@@ -42,6 +42,9 @@
 
 :root {
   --radius: 0.625rem;
+  /* Dark-first app: tell the OS to render native controls (select popups,
+     checkboxes, date pickers, scrollbars, dialogs) dark, not light-over-navy. */
+  color-scheme: dark;
 }
 
 @layer base {

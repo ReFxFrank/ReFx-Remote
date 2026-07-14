@@ -633,6 +633,8 @@ export const ipc = {
   authStatus: () => invoke<AuthStatus>("auth_status"),
   authLogin: (email: string, password: string, remember: boolean, totp?: string) =>
     invoke<LoginResult>("auth_login", { email, password, remember, totp }),
+  accountPassword: (currentPassword: string, newPassword: string) =>
+    invoke<void>("account_password", { currentPassword, newPassword }),
   authMfaVerify: (code: string, method?: string) =>
     invoke<void>("auth_mfa_verify", { code, method }),
   authLogout: () => invoke<void>("auth_logout"),

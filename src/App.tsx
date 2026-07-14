@@ -3,6 +3,7 @@ import { useAuth } from "./store/auth";
 import { useNav } from "./store/nav";
 import { isStaffPerms } from "./lib/perms";
 import SignIn from "./screens/SignIn";
+import ForcePasswordChange from "./screens/ForcePasswordChange";
 import Servers from "./screens/Servers";
 import AdminApp from "./components/admin/AdminApp";
 import { Aurora } from "./components/Logo";
@@ -30,7 +31,7 @@ export default function App() {
           <p className="text-sm text-muted-foreground">Starting…</p>
         </main>
       ) : status === "signedIn" ? (
-        signedInView
+        profile?.mustChangePassword ? <ForcePasswordChange /> : signedInView
       ) : (
         <SignIn />
       )}

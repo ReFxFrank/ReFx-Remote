@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { PowerSignal, ServerState } from "../lib/ipc";
 
 type Props = {
@@ -15,6 +15,15 @@ const BUSY_STATES: ServerState[] = ["INSTALLING", "REINSTALLING", "SWITCHING_GAM
 export default function PowerControls({ state, serverName, busy, canPower, onPower }: Props) {
   const [confirmKill, setConfirmKill] = useState(false);
   const [typed, setTyped] = useState("");
+
+  useEffect(() => {
+    if (!confirmKill) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setConfirmKill(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [confirmKill]);
 
   const isOff = state === "OFFLINE" || state === "CRASHED";
   const isUp = RUNNING_ISH.includes(state);
@@ -77,8 +86,11 @@ export default function PowerControls({ state, serverName, busy, canPower, onPow
       )}
 
       {confirmKill && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="refx-panel refx-beam w-full max-w-md p-6">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => setConfirmKill(false)}
+        >
+          <div className="refx-panel refx-beam w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-semibold text-destructive-foreground">Force kill?</h2>
             <p className="mt-2 text-sm text-muted-foreground">
               Killing is an unclean shutdown — the process is terminated immediately and unsaved

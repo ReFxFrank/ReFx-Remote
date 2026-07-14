@@ -36,7 +36,7 @@ Everything below is wired and builds locally; these are the human-only / account
 
 ### B. Authenticode code signing (Azure Trusted Signing) — item 7, still the longest lead
 - Without it, Windows SmartScreen warns users on first install. The updater's minisign signature (A) is independent — auto-update works without Authenticode, but the installer download will be flagged.
-- Create an **Azure Trusted Signing** account + certificate profile, then add repo secrets `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` (already referenced in `release.yml`) and set `bundle.windows.signCommand` in `tauri.conf.json` to invoke `trusted-signing-cli` (or Azure's `signtool` dlib). Left out of the config for now so unsigned local/CI builds still succeed.
+- **Full step-by-step runbook: [code-signing.md](code-signing.md).** It covers the Azure Trusted Signing account + certificate profile (multi-day identity validation), the service principal + role, the three `AZURE_*` repo secrets (already referenced in `release.yml`), and the exact one-file config change — plus the critical gotcha that signing must run **inside** the Tauri bundle (`bundle.windows.signCommand`), never as a later CI step, or the updater's minisign signature stops matching and auto-updates break. Left out of the committed config for now so unsigned local/CI builds still succeed.
 
 ### C. Cutting a release
 1. Bump `version` in `src-tauri/tauri.conf.json` (and `package.json` if you keep them in sync).

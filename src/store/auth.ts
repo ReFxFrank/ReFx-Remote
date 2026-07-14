@@ -12,6 +12,7 @@ type AuthStore = {
   init: () => Promise<void>;
   login: (email: string, password: string, remember: boolean) => Promise<void>;
   verifyMfa: (code: string, method?: "totp" | "recovery") => Promise<void>;
+  changePassword: (current: string, next: string) => Promise<void>;
   backToSignIn: () => void;
   sessionExpired: () => void;
   logout: () => Promise<void>;
@@ -59,6 +60,21 @@ export const useAuth = create<AuthStore>((set, get) => ({
     set({ busy: true, error: null });
     try {
       await ipc.authMfaVerify(code, method);
+      await get().init();
+      set({ busy: false });
+    } catch (e) {
+      set({ busy: false, error: errorMessage(e) });
+    }
+  },
+
+  // Change password while the account is locked for a required change. On
+  // success the backend clears `mustChangePassword`; re-running init() re-reads
+  // the profile and lands us on the app (or on sign-in if the change ended the
+  // session).
+  changePassword: async (current, next) => {
+    set({ busy: true, error: null });
+    try {
+      await ipc.accountPassword(current, next);
       await get().init();
       set({ busy: false });
     } catch (e) {

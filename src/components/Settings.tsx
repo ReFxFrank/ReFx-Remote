@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ipc, errorMessage, type AppSettings } from "../lib/ipc";
+import { ipc, errorMessage, type AppSettings, type AppInfo } from "../lib/ipc";
 import { useAuth } from "../store/auth";
 
 function Toggle({
@@ -39,11 +39,13 @@ function Toggle({
 export default function Settings({ onClose }: { onClose: () => void }) {
   const { profile, logout } = useAuth();
   const [s, setS] = useState<AppSettings | null>(null);
+  const [info, setInfo] = useState<AppInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     ipc.settingsGet().then(setS).catch((e) => setError(errorMessage(e)));
+    ipc.appInfo().then(setInfo).catch(() => {});
   }, []);
 
   function update(patch: Partial<AppSettings>) {
@@ -140,6 +142,10 @@ export default function Settings({ onClose }: { onClose: () => void }) {
             Sign out
           </button>
         </div>
+
+        <p className="mt-3 text-center text-[11px] text-muted-foreground">
+          {info ? `${info.name} v${info.version}` : " "}
+        </p>
       </div>
     </div>
   );
