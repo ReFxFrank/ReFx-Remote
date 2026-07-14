@@ -19,6 +19,7 @@ import { execSync } from "node:child_process";
 const TAURI = "src-tauri/tauri.conf.json";
 const PKG = "package.json";
 const CARGO = "src-tauri/Cargo.toml";
+const CARGO_LOCK = "src-tauri/Cargo.lock";
 const VERSION_RE = /("version":\s*")\d+\.\d+\.\d+(")/; // JSON files
 const CARGO_RE = /^version\s*=\s*"\d+\.\d+\.\d+"/m; // package version line
 
@@ -54,9 +55,17 @@ console.log(`Releasing v${next}  (was v${curr})`);
 writeFileSync(TAURI, tauriRaw.replace(VERSION_RE, `$1${next}$2`));
 writeFileSync(PKG, readFileSync(PKG, "utf8").replace(VERSION_RE, `$1${next}$2`));
 writeFileSync(CARGO, readFileSync(CARGO, "utf8").replace(CARGO_RE, `version = "${next}"`));
+// Keep the refx-desktop entry in the lockfile in step so `git diff` stays clean.
+writeFileSync(
+  CARGO_LOCK,
+  readFileSync(CARGO_LOCK, "utf8").replace(
+    /(name = "refx-desktop"\r?\nversion = ")\d+\.\d+\.\d+(")/,
+    `$1${next}$2`,
+  ),
+);
 
 const run = (cmd) => execSync(cmd, { stdio: "inherit" });
-run(`git add ${TAURI} ${PKG} ${CARGO}`);
+run(`git add ${TAURI} ${PKG} ${CARGO} ${CARGO_LOCK}`);
 run(`git commit -m "Release v${next}"`);
 run(`git tag -a "v${next}" -m "v${next}"`);
 run("git push origin HEAD");
