@@ -175,6 +175,38 @@ export type AdminUser = {
   emailVerifiedAt?: string | null;
 };
 export type AdminUserList = { users: AdminUser[]; meta?: PageMeta };
+export type AdminServer = {
+  id: string;
+  name: string;
+  state: ServerState;
+  cpuCores?: number | null;
+  memoryMb?: number | null;
+  diskMb?: number | null;
+  swapMb?: number | null;
+  nodeId?: string | null;
+  template?: { id?: string; name?: string; slug?: string } | null;
+  node?: { id?: string; name?: string; fqdn?: string } | null;
+  owner?: { id: string; email?: string | null; firstName?: string | null; lastName?: string | null } | null;
+  primaryAllocation?: { ip?: string; port?: number; alias?: string } | null;
+  suspendedAt?: string | null;
+};
+export type AdminServerList = { servers: AdminServer[]; meta?: PageMeta };
+export type ServerTransfer = {
+  id: string;
+  serverId?: string | null;
+  fromNodeId?: string | null;
+  toNodeId?: string | null;
+  state?: string | null;
+  error?: string | null;
+  createdAt?: string | null;
+};
+export type VoiceStatus = {
+  enabled: boolean;
+  port?: number | null;
+  ip?: string | null;
+  alreadyEnabled?: boolean | null;
+  disabled?: boolean | null;
+};
 
 export const ipc = {
   appInfo: () => invoke<AppInfo>("app_info"),
@@ -261,6 +293,26 @@ export const ipc = {
     }) => invoke<AdminUserList>("admin_users_list", { ...opts }),
     userSetRole: (userId: string, role: string | null, roleId: string | null) =>
       invoke<AdminUser>("admin_user_set_role", { userId, role, roleId }),
+
+    serversList: (opts?: { page?: number; pageSize?: number; q?: string }) =>
+      invoke<AdminServerList>("admin_servers_list", { ...opts }),
+    serverDelete: (id: string) => invoke<void>("admin_server_delete", { id }),
+    serverResize: (
+      id: string,
+      patch: { cpuCores?: number; memoryMb?: number; swapMb?: number; diskMb?: number },
+    ) => invoke<AdminServer>("admin_server_resize", { id, ...patch }),
+    serverTransfer: (id: string, toNodeId: string) =>
+      invoke<ServerTransfer>("admin_server_transfer", { id, toNodeId }),
+    serverTransfers: (id: string) => invoke<ServerTransfer[]>("admin_server_transfers", { id }),
+    serverVoiceGet: (id: string) => invoke<VoiceStatus>("admin_server_voice_get", { id }),
+    serverVoiceEnable: (id: string) => invoke<VoiceStatus>("admin_server_voice_enable", { id }),
+    serverVoiceDisable: (id: string) => invoke<VoiceStatus>("admin_server_voice_disable", { id }),
+    serverSuspend: (id: string, reason?: string) =>
+      invoke<unknown>("admin_server_suspend", { id, reason }),
+    serverUnsuspend: (id: string) => invoke<unknown>("admin_server_unsuspend", { id }),
+    serverReinstall: (id: string) => invoke<unknown>("admin_server_reinstall", { id }),
+    serverVanityStrip: (id: string, refundCredit: boolean, confirm: boolean) =>
+      invoke<unknown>("admin_server_vanity_strip", { id, refundCredit, confirm }),
   },
 };
 

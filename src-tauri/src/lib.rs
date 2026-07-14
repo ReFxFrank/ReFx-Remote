@@ -139,6 +139,18 @@ pub fn run() {
             commands_admin::admin_role_delete,
             commands_admin::admin_users_list,
             commands_admin::admin_user_set_role,
+            commands_admin::admin_servers_list,
+            commands_admin::admin_server_delete,
+            commands_admin::admin_server_resize,
+            commands_admin::admin_server_transfer,
+            commands_admin::admin_server_transfers,
+            commands_admin::admin_server_voice_get,
+            commands_admin::admin_server_voice_enable,
+            commands_admin::admin_server_voice_disable,
+            commands_admin::admin_server_suspend,
+            commands_admin::admin_server_unsuspend,
+            commands_admin::admin_server_reinstall,
+            commands_admin::admin_server_vanity_strip,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

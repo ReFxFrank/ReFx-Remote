@@ -4,6 +4,7 @@ import { useNav, type AdminScreen } from "../../store/nav";
 import { hasPermission, type AdminPermission } from "../../lib/perms";
 import { LogoWordmark } from "../Logo";
 import Roles from "./Roles";
+import AdminServers from "./AdminServers";
 
 type NavItem = { screen: AdminScreen; label: string; perm: AdminPermission; ready?: boolean };
 type NavGroup = { group: string; items: NavItem[] };
@@ -12,7 +13,7 @@ type NavGroup = { group: string; items: NavItem[] };
 // (ready !== true) render a placeholder. Tiers fill these in.
 const NAV: NavGroup[] = [
   { group: "Overview", items: [{ screen: "dashboard", label: "Dashboard", perm: "dashboard.read" }] },
-  { group: "Fleet", items: [{ screen: "servers", label: "Servers", perm: "servers.read" }] },
+  { group: "Fleet", items: [{ screen: "servers", label: "Servers", perm: "servers.read", ready: true }] },
   {
     group: "People",
     items: [{ screen: "users", label: "Users & customers", perm: "users.read" }],
@@ -124,6 +125,7 @@ export default function AdminApp() {
 
 function AdminScreenView({ screen, ready }: { screen: AdminScreen; ready?: boolean }) {
   if (screen === "roles") return <Roles />;
+  if (screen === "servers") return <AdminServers />;
   return (
     <div className="flex h-full items-center justify-center p-8 text-center">
       <div className="max-w-sm">
