@@ -23,7 +23,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use tauri::AppHandle;
-use tauri_plugin_notification::NotificationExt;
 use tokio::sync::watch;
 use tracing::debug;
 
@@ -228,11 +227,12 @@ fn newest_from_requester<'a>(
 }
 
 fn notify(app: &AppHandle, title: &str, body: &str) {
-    // See monitor::notify — never swallow the result, so a Windows toast failure
-    // (or silent OS suppression) is visible in the diagnostics log.
-    match app.notification().builder().title(title).body(body).show() {
+    // See crate::toast — the plugin's fire-and-forget path swallows the WinRT
+    // result and runs on a no-COM tokio worker, so background alerts never
+    // showed. Go direct and log the real outcome.
+    match crate::toast::show(&app.config().identifier, title, body) {
         Ok(()) => tracing::info!("notification shown: {title}"),
-        Err(e) => tracing::warn!("notification show failed ({title}): {e}"),
+        Err(e) => tracing::warn!("notification failed ({title}): {e}"),
     }
 }
 

@@ -23,7 +23,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use tauri::{AppHandle, Emitter};
-use tauri_plugin_notification::NotificationExt;
 use tokio::sync::watch;
 use tracing::debug;
 
@@ -126,7 +125,7 @@ async fn run(
                 seen_notices.extend(rows.iter().map(|r| r.id.clone()));
                 notices_primed = true;
             }
-            Err(e) => debug!("notification feed poll failed: {}", e.code()),
+            Err(e) => tracing::warn!("notification feed poll failed: {}", e.code()),
         }
 
         // The state-transition pass only runs with a fresh server snapshot to
@@ -320,13 +319,13 @@ fn detect(
 }
 
 fn notify(app: &AppHandle, title: &str, body: &str) {
-    // Never swallow the result: on Windows a toast can fail (unregistered
-    // AppUserModelID, plugin error) and, worse, "succeed" while Windows silently
-    // suppresses it (Focus Assist / notifications off for the app). Logging both
-    // outcomes is the only way to tell those apart from the diagnostics log.
-    match app.notification().builder().title(title).body(body).show() {
+    // Go through crate::toast (COM-initialized thread) rather than the plugin's
+    // fire-and-forget path, which swallows the WinRT result and runs it on a
+    // tokio worker with no COM apartment — so background alerts never showed.
+    // Log the real outcome either way so the diagnostics log tells the truth.
+    match crate::toast::show(&app.config().identifier, title, body) {
         Ok(()) => tracing::info!("notification shown: {title}"),
-        Err(e) => tracing::warn!("notification show failed ({title}): {e}"),
+        Err(e) => tracing::warn!("notification failed ({title}): {e}"),
     }
 }
 

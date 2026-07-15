@@ -42,14 +42,20 @@ tauri-plugin-deep-link = "2.4.9"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 base64 = "0.22"
-# Native passkey (WebAuthn) assertion via webauthn.dll. The `windows` crate is
-# already in the tree transitively (Tauri) — this just enables the WebAuthn +
-# window-handle bindings. No OpenSSL, unlike webauthn-authenticator-rs.
+# Native passkey (WebAuthn) assertion via webauthn.dll + COM init for toasts.
+# The `windows` crate is already in the tree transitively (Tauri) — this just
+# enables the WebAuthn, window-handle, and COM bindings. No OpenSSL, unlike
+# webauthn-authenticator-rs.
 windows = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_Networking_WindowsWebServices",
     "Win32_UI_WindowsAndMessaging",
+    "Win32_System_Com",
 ] }
+# Direct WinRT toast so we control the COM apartment (tauri-plugin-notification
+# fires the real call on a tokio worker with no apartment and swallows the
+# error). Already in the tree transitively via the plugin.
+tauri-winrt-notification = "0.7"
 
 [dev-dependencies]
 tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros", "sync", "time", "net"] }

@@ -46,17 +46,16 @@ pub fn app_info(app: AppHandle) -> AppInfo {
 /// `Err` carries the OS rejection message.
 #[tauri::command]
 pub fn notification_test(app: AppHandle) -> Result<(), IpcError> {
-    use tauri_plugin_notification::NotificationExt;
-    app.notification()
-        .builder()
-        .title("ReFx Desktop")
-        .body("Test notification — if you can see this, alerts are working.")
-        .show()
-        .map_err(|e| IpcError {
-            code: "NOTIFICATION",
-            message: format!("Windows rejected the notification: {e}"),
-            mfa_methods: None,
-        })
+    crate::toast::show(
+        &app.config().identifier,
+        "ReFx Desktop",
+        "Test notification — if you can see this, alerts are working.",
+    )
+    .map_err(|e| IpcError {
+        code: "NOTIFICATION",
+        message: format!("Windows rejected the notification: {e}"),
+        mfa_methods: None,
+    })
 }
 
 #[derive(Serialize)]

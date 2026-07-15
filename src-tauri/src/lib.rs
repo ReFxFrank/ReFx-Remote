@@ -14,6 +14,7 @@ pub mod monitor;
 pub mod settings;
 pub mod support_watch;
 pub mod state;
+pub mod toast;
 pub mod tray;
 pub mod vault;
 
