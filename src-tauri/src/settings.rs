@@ -8,19 +8,17 @@ use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
-fn default_true() -> bool {
-    true
-}
-
+// `default` at the container level: any missing field falls back to its
+// `Default` value INDIVIDUALLY. Without it, a single missing/renamed field made
+// the whole struct fail to deserialize, and `load()`'s `.ok().unwrap_or_default()`
+// then silently reset EVERY toggle. A partial or older settings.json must keep
+// the toggles it does carry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", default)]
 pub struct Settings {
     pub notify_crashed: bool,
     pub notify_back_online: bool,
-    /// Staff-only: Windows notifications for new/updated support tickets. New
-    /// field — defaulted so an older settings.json (missing it) still loads
-    /// without resetting the user's other toggles.
-    #[serde(default = "default_true")]
+    /// Staff-only: Windows notifications for new/updated support tickets.
     pub notify_support: bool,
     /// Close-to-tray: window close hides instead of quitting.
     pub close_to_tray: bool,

@@ -50,6 +50,8 @@ export default function Settings({ onClose }: { onClose: () => void }) {
   const [copied, setCopied] = useState(false);
   const [setup2fa, setSetup2fa] = useState(false);
   const [disable2fa, setDisable2fa] = useState(false);
+  // null = idle, "sending", "ok", or an error message.
+  const [notifTest, setNotifTest] = useState<string | null>(null);
 
   async function disableTwoFactor() {
     setDisable2fa(false);
@@ -91,6 +93,19 @@ export default function Settings({ onClose }: { onClose: () => void }) {
       window.setTimeout(() => setCopied(false), 1800);
     } catch (e) {
       setError(errorMessage(e));
+    }
+  }
+
+  async function sendTestNotification() {
+    setNotifTest("sending");
+    try {
+      await ipc.notificationTest();
+      // The app handed the toast to Windows successfully. If none appears, the
+      // block is on the Windows side (Focus Assist / per-app toggle) — which the
+      // app can't see, so we point the user there.
+      setNotifTest("ok");
+    } catch (e) {
+      setNotifTest(errorMessage(e));
     }
   }
 
@@ -138,6 +153,23 @@ export default function Settings({ onClose }: { onClose: () => void }) {
                 onChange={(v) => update({ notifySupport: v })}
               />
             )}
+            <button
+              type="button"
+              onClick={() => void sendTestNotification()}
+              disabled={notifTest === "sending"}
+              className="btn-ghost mt-2 rounded-md px-3 py-1.5 text-xs disabled:opacity-50"
+            >
+              {notifTest === "sending" ? "Sending…" : "Send test notification"}
+            </button>
+            {notifTest === "ok" ? (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Sent. If nothing appeared, Windows is blocking it — open Settings → System →
+                Notifications, make sure notifications are on for “ReFx Desktop”, and turn off Focus
+                Assist / Do Not Disturb.
+              </p>
+            ) : notifTest && notifTest !== "sending" ? (
+              <p className="mt-2 text-xs text-destructive-foreground">Couldn’t send it: {notifTest}</p>
+            ) : null}
 
             <div className="refx-eyebrow mt-5">Window</div>
             <Toggle

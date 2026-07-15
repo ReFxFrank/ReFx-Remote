@@ -635,6 +635,7 @@ export type TeamMember = {
 
 export const ipc = {
   appInfo: () => invoke<AppInfo>("app_info"),
+  notificationTest: () => invoke<void>("notification_test"),
   authStatus: () => invoke<AuthStatus>("auth_status"),
   authLogin: (email: string, password: string, remember: boolean, totp?: string) =>
     invoke<LoginResult>("auth_login", { email, password, remember, totp }),

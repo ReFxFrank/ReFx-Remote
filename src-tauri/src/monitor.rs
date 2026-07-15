@@ -92,25 +92,34 @@ async fn run(
             tray::set_servers(&app, &[]);
             continue;
         }
-        let page = match servers::list(&auth, None, 1, 100).await {
-            Ok(p) => p,
-            Err(e) => {
-                debug!("monitor poll failed: {}", e.code());
-                continue;
-            }
-        };
-        tray::set_servers(&app, &page.data);
-
         let p = *prefs.borrow();
 
-        // The notification feed first: a crash row marks the server in
-        // `crashed` BEFORE the state pass, so the same incident never
-        // double-alerts even when both signals land in one tick.
+        // The server list drives the tray + the state-transition pass. A
+        // transient failure here must NOT skip the notification-feed pass: the
+        // two crash signals are independent (the feed catches crashes the 20s
+        // state poll bounces past). Fall back to an empty server slice, which
+        // handle_notice tolerates.
+        let servers = match servers::list(&auth, None, 1, 100).await {
+            Ok(page) => Some(page),
+            Err(e) => {
+                debug!("server list poll failed: {}", e.code());
+                None
+            }
+        };
+        let server_slice: &[ServerSummary] =
+            servers.as_ref().map(|page| page.data.as_slice()).unwrap_or(&[]);
+        if let Some(page) = &servers {
+            tray::set_servers(&app, &page.data);
+        }
+
+        // The notification feed: a crash row marks the server in `crashed`
+        // BEFORE the state pass, so the same incident never double-alerts even
+        // when both signals land in one tick.
         match notifications::list(&auth, 1, 20).await {
             Ok(rows) => {
                 if notices_primed {
                     for row in rows.iter().filter(|r| !seen_notices.contains(&r.id)) {
-                        handle_notice(&app, row, &page.data, &mut crashed, p);
+                        handle_notice(&app, row, server_slice, &mut crashed, p);
                     }
                 }
                 seen_notices.clear();
@@ -120,19 +129,22 @@ async fn run(
             Err(e) => debug!("notification feed poll failed: {}", e.code()),
         }
 
-        let present: HashSet<String> = page.data.iter().map(|s| s.id.clone()).collect();
-
-        for s in &page.data {
-            if let Some(&prev) = last.get(&s.id) {
-                if primed {
-                    detect(&app, &intent, &mut crashed, s, prev, p);
+        // The state-transition pass only runs with a fresh server snapshot to
+        // diff against; skip it (keeping prior `last`) on a failed list.
+        if let Some(page) = &servers {
+            let present: HashSet<String> = page.data.iter().map(|s| s.id.clone()).collect();
+            for s in &page.data {
+                if let Some(&prev) = last.get(&s.id) {
+                    if primed {
+                        detect(&app, &intent, &mut crashed, s, prev, p);
+                    }
                 }
+                last.insert(s.id.clone(), s.state);
             }
-            last.insert(s.id.clone(), s.state);
+            last.retain(|id, _| present.contains(id));
+            crashed.retain(|id| present.contains(id));
+            primed = true;
         }
-        last.retain(|id, _| present.contains(id));
-        crashed.retain(|id| present.contains(id));
-        primed = true;
     }
 }
 
@@ -308,7 +320,14 @@ fn detect(
 }
 
 fn notify(app: &AppHandle, title: &str, body: &str) {
-    let _ = app.notification().builder().title(title).body(body).show();
+    // Never swallow the result: on Windows a toast can fail (unregistered
+    // AppUserModelID, plugin error) and, worse, "succeed" while Windows silently
+    // suppresses it (Focus Assist / notifications off for the app). Logging both
+    // outcomes is the only way to tell those apart from the diagnostics log.
+    match app.notification().builder().title(title).body(body).show() {
+        Ok(()) => tracing::info!("notification shown: {title}"),
+        Err(e) => tracing::warn!("notification show failed ({title}): {e}"),
+    }
 }
 
 #[cfg(test)]

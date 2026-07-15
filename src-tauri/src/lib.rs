@@ -107,6 +107,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::app_info,
+            commands::notification_test,
             commands::auth_status,
             commands::auth_login,
             commands::auth_mfa_verify,

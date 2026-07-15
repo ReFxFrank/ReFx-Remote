@@ -39,6 +39,26 @@ pub fn app_info(app: AppHandle) -> AppInfo {
     }
 }
 
+/// Fire a test toast on demand so the user can confirm the Windows notification
+/// pipeline works without waiting for a real crash. `Ok` means Windows accepted
+/// it — if no toast appears afterward, the cause is OS-level suppression (Focus
+/// Assist / notifications turned off for the app), which the app cannot detect.
+/// `Err` carries the OS rejection message.
+#[tauri::command]
+pub fn notification_test(app: AppHandle) -> Result<(), IpcError> {
+    use tauri_plugin_notification::NotificationExt;
+    app.notification()
+        .builder()
+        .title("ReFx Desktop")
+        .body("Test notification — if you can see this, alerts are working.")
+        .show()
+        .map_err(|e| IpcError {
+            code: "NOTIFICATION",
+            message: format!("Windows rejected the notification: {e}"),
+            mfa_methods: None,
+        })
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AuthStatus {

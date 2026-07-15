@@ -228,7 +228,12 @@ fn newest_from_requester<'a>(
 }
 
 fn notify(app: &AppHandle, title: &str, body: &str) {
-    let _ = app.notification().builder().title(title).body(body).show();
+    // See monitor::notify — never swallow the result, so a Windows toast failure
+    // (or silent OS suppression) is visible in the diagnostics log.
+    match app.notification().builder().title(title).body(body).show() {
+        Ok(()) => tracing::info!("notification shown: {title}"),
+        Err(e) => tracing::warn!("notification show failed ({title}): {e}"),
+    }
 }
 
 #[cfg(test)]
