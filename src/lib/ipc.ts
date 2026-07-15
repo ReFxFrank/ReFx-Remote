@@ -149,7 +149,8 @@ export type StatusEvent = { state: ServerState };
 
 export type AppSettings = {
   notifyCrashed: boolean;
-  notifyBackOnline: boolean;
+  notifyOnline: boolean;
+  notifyOffline: boolean;
   notifySupport: boolean;
   closeToTray: boolean;
   startWithWindows: boolean;

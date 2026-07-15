@@ -34,16 +34,20 @@ use crate::tray;
 
 const POLL: Duration = Duration::from_secs(20);
 
-/// Notification toggles the UI can flip; defaults on. Read fresh each cycle.
+/// Notification toggles the UI can flip. Read fresh each cycle.
 #[derive(Clone, Copy)]
 pub struct NotifyPrefs {
     pub crashed: bool,
-    pub back_online: bool,
+    /// A server came online — start, restart, or recovery after a crash.
+    pub online: bool,
+    /// A server went offline. Off by default: a clean stop the owner performs
+    /// themselves also lands in OFFLINE, so this would toast on intentional stops.
+    pub offline: bool,
 }
 
 impl Default for NotifyPrefs {
     fn default() -> Self {
-        Self { crashed: true, back_online: true }
+        Self { crashed: true, online: true, offline: false }
     }
 }
 
@@ -73,21 +77,25 @@ async fn run(
     prefs: watch::Receiver<NotifyPrefs>,
 ) {
     let mut last: HashMap<String, ServerState> = HashMap::new();
-    // Servers we've alerted as crashed, so we can announce their recovery once.
+    // Servers we've alerted as crashed (keyed by NAME so the feed and the state
+    // pass share one set), so we announce their recovery exactly once.
     let mut crashed: HashSet<String> = HashSet::new();
     let mut primed = false; // don't fire alerts on the very first snapshot
-    // Notification-feed rows already seen (feed is newest-first, page 1).
-    let mut seen_notices: HashSet<String> = HashSet::new();
+    // Feed high-water mark: the newest notification id (uuidv7, monotonic) we've
+    // processed. We alert rows STRICTLY newer than this, so a crash that lands
+    // while signed out still fires on the next successful poll — and it is NOT
+    // reset on sign-out, so the frequent session churn can't prime a crash away.
     let mut notices_primed = false;
+    let mut notice_watermark: Option<String> = None;
 
     loop {
         tokio::time::sleep(POLL).await;
         if !auth.is_signed_in().await {
+            // Per-session state-path bookkeeping resets; the feed watermark does
+            // NOT — a crash during the signed-out gap must still alert on resume.
             last.clear();
             crashed.clear();
             primed = false;
-            seen_notices.clear();
-            notices_primed = false;
             tray::set_servers(&app, &[]);
             continue;
         }
@@ -111,18 +119,29 @@ async fn run(
             tray::set_servers(&app, &page.data);
         }
 
-        // The notification feed: a crash row marks the server in `crashed`
-        // BEFORE the state pass, so the same incident never double-alerts even
-        // when both signals land in one tick.
+        // The notification feed is the primary, durable state signal. A crash
+        // row marks the server in `crashed` BEFORE the state pass, so the same
+        // incident never double-alerts. Rows arrive newest-first; process them
+        // oldest-first so a crash-then-recover pair toasts in order.
         match notifications::list(&auth, 1, 20).await {
             Ok(rows) => {
                 if notices_primed {
-                    for row in rows.iter().filter(|r| !seen_notices.contains(&r.id)) {
+                    let mark = notice_watermark.as_deref().unwrap_or("");
+                    for row in rows.iter().rev().filter(|r| r.id.as_str() > mark) {
                         handle_notice(&app, row, server_slice, &mut crashed, p);
                     }
                 }
-                seen_notices.clear();
-                seen_notices.extend(rows.iter().map(|r| r.id.clone()));
+                // Advance the mark to the newest id seen (never regress). On the
+                // very first poll this just primes — the backlog isn't alerted.
+                if let Some(newest) = rows.iter().map(|r| &r.id).max() {
+                    let advance = match &notice_watermark {
+                        Some(m) => newest.as_str() > m.as_str(),
+                        None => true,
+                    };
+                    if advance {
+                        notice_watermark = Some(newest.clone());
+                    }
+                }
                 notices_primed = true;
             }
             Err(e) => tracing::warn!("notification feed poll failed: {}", e.code()),
@@ -141,25 +160,36 @@ async fn run(
                 last.insert(s.id.clone(), s.state);
             }
             last.retain(|id, _| present.contains(id));
-            crashed.retain(|id| present.contains(id));
+            // `crashed` is name-keyed; drop entries for servers no longer present.
+            crashed.retain(|name| page.data.iter().any(|s| &s.name == name));
             primed = true;
         }
     }
 }
 
 /// What a feed row is about, classified from the backend's fixed phrasing
-/// (`Your server "NAME" has crashed.` / `… was suspended.`).
+/// (`Your server "NAME" has crashed.` / `… is now online.` / etc.).
 #[derive(Debug, PartialEq, Eq)]
 enum Notice {
     Crash { server_name: String },
+    Online { server_name: String },
+    Offline { server_name: String },
     Suspended,
     Other,
 }
 
 fn classify_notice(body: &str) -> Notice {
+    // Trim trailing whitespace so a stray newline can't defeat the suffix match.
+    let body = body.trim_end();
     if let Some(name) = quoted_name(body) {
         if body.ends_with("has crashed.") {
             return Notice::Crash { server_name: name };
+        }
+        if body.ends_with("is now online.") {
+            return Notice::Online { server_name: name };
+        }
+        if body.ends_with("is now offline.") {
+            return Notice::Offline { server_name: name };
         }
         if body.ends_with("was suspended.") {
             return Notice::Suspended;
@@ -183,23 +213,47 @@ fn handle_notice(
     crashed: &mut HashSet<String>,
     prefs: NotifyPrefs,
 ) {
-    // EMAIL-channel rows are delivery records, not app-facing notices.
-    if matches!(row.channel.as_deref(), Some(c) if c != "IN_APP") {
+    // Drop known delivery-only channels (email/SMS delivery records); treat an
+    // absent channel or anything else (IN_APP, unknown tokens) as app-facing, so
+    // an unexpected value can't silently swallow a crash. Case-insensitive.
+    if matches!(
+        row.channel.as_deref().map(|c| c.to_ascii_uppercase()).as_deref(),
+        Some("EMAIL" | "SMS")
+    ) {
         return;
     }
     let body = row.body.as_deref().unwrap_or_default();
     match classify_notice(body) {
         Notice::Crash { server_name } => {
-            if prefs.crashed {
+            // `crashed` is keyed by server NAME so the feed (which carries only
+            // the name) and the state pass coordinate even on a cycle where the
+            // server list failed to load — whichever signal fires first marks the
+            // server, and the other skips, so the same crash never double-toasts.
+            let already = crashed.contains(&server_name);
+            if prefs.crashed && !already {
                 notify(app, "Server crashed", &format!("{server_name} crashed."));
             }
-            // Mark it as already-alerted so the state pass doesn't re-alert; if
-            // it's still down, recovery will announce "back online" later. An
-            // auto-restarted server (already RUNNING) needs no recovery toast.
-            if let Some(s) = servers.iter().find(|s| s.name == server_name) {
-                if matches!(s.state, ServerState::Offline | ServerState::Crashed) {
-                    crashed.insert(s.id.clone());
-                }
+            // Track it so the state pass announces recovery once — unless we can
+            // already see it's back up (a fast auto-restart needs no recovery).
+            let observed_up = servers
+                .iter()
+                .any(|s| s.name == server_name && s.state == ServerState::Running);
+            if !observed_up {
+                crashed.insert(server_name);
+            }
+        }
+        Notice::Online { server_name } => {
+            // Recovery of a crashed server is announced by the state pass's "back
+            // online" (which clears `crashed`); only announce a plain start or
+            // restart here to avoid a double toast.
+            let is_recovery = crashed.contains(&server_name);
+            if prefs.online && !is_recovery {
+                notify(app, "Server online", &format!("{server_name} is now online."));
+            }
+        }
+        Notice::Offline { server_name } => {
+            if prefs.offline {
+                notify(app, "Server offline", &format!("{server_name} is now offline."));
             }
         }
         // The state pass owns suspension (the SUSPENDED state persists, so the
@@ -288,15 +342,17 @@ fn detect(
     prev: ServerState,
     prefs: NotifyPrefs,
 ) {
-    let d = decide(prev, s.state, intent.active(&s.id), crashed.contains(&s.id));
+    // `crashed` is keyed by server NAME (see handle_notice) so the feed and this
+    // state pass share one coordination set regardless of id availability.
+    let d = decide(prev, s.state, intent.active(&s.id), crashed.contains(&s.name));
     if d.consume_intent {
         intent.clear(&s.id);
     }
     if d.mark_crashed {
-        crashed.insert(s.id.clone());
+        crashed.insert(s.name.clone());
     }
     if d.clear_crashed {
-        crashed.remove(&s.id);
+        crashed.remove(&s.name);
     }
     let name = &s.name;
     match d.alert {
@@ -307,7 +363,7 @@ fn detect(
             }
         }
         Alert::BackOnline => {
-            if prefs.back_online {
+            if prefs.online {
                 notify(app, "Server back online", &format!("{name} is running again."));
             }
         }
@@ -446,6 +502,26 @@ mod tests {
         assert_eq!(
             classify_notice(r#"Your server "has crashed" has crashed."#),
             Notice::Crash { server_name: "has crashed".into() },
+        );
+    }
+
+    #[test]
+    fn online_and_offline_notices_are_classified() {
+        assert_eq!(
+            classify_notice(r#"Your server "My SMP" is now online."#),
+            Notice::Online { server_name: "My SMP".into() },
+        );
+        assert_eq!(
+            classify_notice(r#"Your server "My SMP" is now offline."#),
+            Notice::Offline { server_name: "My SMP".into() },
+        );
+    }
+
+    #[test]
+    fn trailing_whitespace_does_not_defeat_classification() {
+        assert_eq!(
+            classify_notice("Your server \"A\" has crashed.\n"),
+            Notice::Crash { server_name: "A".into() },
         );
     }
 }

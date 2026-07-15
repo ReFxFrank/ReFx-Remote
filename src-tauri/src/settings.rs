@@ -17,7 +17,12 @@ use tauri::{AppHandle, Manager};
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
     pub notify_crashed: bool,
-    pub notify_back_online: bool,
+    /// A server came online — start, restart, or recovery after a crash.
+    /// (Replaces the old `notifyBackOnline`; a missing field defaults on.)
+    pub notify_online: bool,
+    /// A server went offline. Off by default: a clean stop the owner performs
+    /// also lands in OFFLINE, so this would toast on intentional stops.
+    pub notify_offline: bool,
     /// Staff-only: Windows notifications for new/updated support tickets.
     pub notify_support: bool,
     /// Close-to-tray: window close hides instead of quitting.
@@ -29,7 +34,8 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             notify_crashed: true,
-            notify_back_online: true,
+            notify_online: true,
+            notify_offline: false,
             notify_support: true,
             close_to_tray: true,
             start_with_windows: false,

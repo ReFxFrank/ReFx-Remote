@@ -693,7 +693,8 @@ pub fn settings_set(
     }
     monitor.set_prefs(NotifyPrefs {
         crashed: next.notify_crashed,
-        back_online: next.notify_back_online,
+        online: next.notify_online,
+        offline: next.notify_offline,
     });
     support.set_prefs(SupportPrefs {
         enabled: next.notify_support,

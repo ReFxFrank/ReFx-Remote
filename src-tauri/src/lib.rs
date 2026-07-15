@@ -69,7 +69,8 @@ pub fn run() {
             let s = store.get();
             mon.set_prefs(monitor::NotifyPrefs {
                 crashed: s.notify_crashed,
-                back_online: s.notify_back_online,
+                online: s.notify_online,
+                offline: s.notify_offline,
             });
             // Staff-only support-ticket alerts, alongside the crash monitor.
             let support = support_watch::spawn(app.handle().clone(), state.auth.clone());

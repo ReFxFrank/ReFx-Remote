@@ -140,10 +140,16 @@ export default function Settings({ onClose }: { onClose: () => void }) {
               onChange={(v) => update({ notifyCrashed: v })}
             />
             <Toggle
-              label="Back online"
-              hint="Alert when a crashed server recovers."
-              checked={s.notifyBackOnline}
-              onChange={(v) => update({ notifyBackOnline: v })}
+              label="Server online"
+              hint="Alert when a server comes online — start, restart, or recovery after a crash."
+              checked={s.notifyOnline}
+              onChange={(v) => update({ notifyOnline: v })}
+            />
+            <Toggle
+              label="Server offline"
+              hint="Alert when a server goes offline. Off by default — this also fires on stops you do yourself."
+              checked={s.notifyOffline}
+              onChange={(v) => update({ notifyOffline: v })}
             />
             {canSupport && (
               <Toggle
