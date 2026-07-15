@@ -29,6 +29,11 @@ use super::protocol::{self, Incoming};
 use crate::panel::auth::AuthManager;
 
 const NAMESPACE: &str = "/ws/console";
+/// Sent on the WS handshake to match the REST client's UA. Without it
+/// tokio-tungstenite sends no User-Agent, which a CDN/WAF (e.g. Cloudflare bot
+/// protection) will 403 at the upgrade even though our REST calls — which carry
+/// this UA — pass fine.
+const USER_AGENT: &str = concat!("ReFxDesktop/", env!("CARGO_PKG_VERSION"), " (Windows NT; x64)");
 const RING_CAP: usize = 5000;
 const BACKOFF_MIN: Duration = Duration::from_secs(1);
 const BACKOFF_MAX: Duration = Duration::from_secs(30);
@@ -201,6 +206,10 @@ async fn connect_once(
         "Origin",
         origin.parse().map_err(|_| SessionError::Transport("bad origin".into()))?,
     );
+    req.headers_mut().insert(
+        "User-Agent",
+        USER_AGENT.parse().map_err(|_| SessionError::Transport("bad user-agent".into()))?,
+    );
 
     // Time-bound the connect AND make it cancellable — a SYN blackhole or a
     // stalled TLS/WS upgrade must not park the task uninterruptibly (close()
@@ -210,7 +219,7 @@ async fn connect_once(
         res = tokio::time::timeout(CONNECT_TIMEOUT, tokio_tungstenite::connect_async(req)) => {
             match res {
                 Err(_) => return Err(SessionError::Transport("connect timed out".into())),
-                Ok(Err(e)) => return Err(SessionError::Transport(format!("connect failed: {e}"))),
+                Ok(Err(e)) => return Err(classify_handshake_error(e)),
                 Ok(Ok((ws, _))) => ws,
             }
         }
@@ -326,6 +335,32 @@ fn classify_error(msg: &str) -> SessionError {
     } else {
         SessionError::Transport(msg.to_string())
     }
+}
+
+/// Map a WebSocket **handshake** failure. If the server answered the upgrade
+/// with an HTTP status (rather than a raw socket error), that status is far more
+/// informative than a generic transport failure: `401` means refresh the token
+/// and retry; `403` means a proxy/CDN/WAF or the gateway refused us, so retrying
+/// the same request is futile — surface it instead of looping forever (the
+/// previous code mapped every handshake error to `Transport`, which retried a
+/// 403 indefinitely).
+fn classify_handshake_error(e: tokio_tungstenite::tungstenite::Error) -> SessionError {
+    use tokio_tungstenite::tungstenite::Error;
+    if let Error::Http(resp) = &e {
+        match resp.status().as_u16() {
+            401 => return SessionError::Unauthorized,
+            403 => {
+                return SessionError::Forbidden(
+                    "The console connection was refused (403). If this keeps happening, a \
+                     firewall or CDN rule (e.g. Cloudflare bot protection) is likely blocking \
+                     the desktop app's WebSocket connection."
+                        .into(),
+                )
+            }
+            _ => {}
+        }
+    }
+    SessionError::Transport(format!("connect failed: {e}"))
 }
 
 type Ws = tokio_tungstenite::WebSocketStream<
